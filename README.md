@@ -51,6 +51,18 @@ npm run dev
 
 Abre http://localhost:3000
 
+## Desplegar en Vercel (demo)
+
+Un solo proyecto en Vercel con dos servicios (`vercel.json` en la raíz): `/api/*` va al
+backend FastAPI (`backend/index.py`) y todo lo demás al frontend Next.js. Al estar en el mismo
+dominio no hace falta `BACKEND_URL` ni CORS.
+
+Variables opcionales en Vercel: `ANTHROPIC_API_KEY` (sin ella, modo simulado) y `NOMBRE_PLANTA`.
+
+Limitaciones de la demo: el historial se guarda en `/tmp`, así que **se borra** cuando la función
+se apaga, y cada arranque vuelve a cargar la semana de datos de ejemplo. Los archivos subidos
+pueden pesar como máximo 4 MB. Para guardar el historial de verdad, pasar a Neon (Postgres).
+
 ## Modos
 
 | Modo | Datos | IA |

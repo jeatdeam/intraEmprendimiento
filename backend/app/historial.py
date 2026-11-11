@@ -12,12 +12,15 @@ import sqlite3
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+import tempfile
 from pathlib import Path
 
 from .equipos import EQUIPOS, evaluar
 from .reglas import RANGOS_FORMULARIO, fmt, numero
 
-RUTA = Path(os.getenv("HISTORIAL_DB", Path(__file__).resolve().parent.parent / "historial.db"))
+# En Vercel solo se puede escribir en /tmp (y se borra al apagarse la función): sirve para la demo.
+_POR_DEFECTO = Path(tempfile.gettempdir()) / "historial.db" if os.getenv("VERCEL") else Path(__file__).resolve().parent.parent / "historial.db"
+RUTA = Path(os.getenv("HISTORIAL_DB", _POR_DEFECTO))
 
 
 def _con() -> sqlite3.Connection:

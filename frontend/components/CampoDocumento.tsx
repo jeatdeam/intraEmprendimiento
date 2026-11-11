@@ -67,7 +67,7 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio }: P
             <Upload size={20} aria-hidden="true" /> {rev ? "Elegir otro documento" : "Elegir documento"}
           </button>
           <Apps apps={["word", "pdf", "powerpoint", "texto"]} />
-          <span className="hint">.docx, .pdf, .pptx o .txt · máximo 5 MB.</span>
+          <span className="hint">.docx, .pdf, .pptx o .txt · máximo 4 MB.</span>
           <input ref={input} type="file" hidden accept=".docx,.pdf,.pptx,.txt,.md"
             onChange={(e) => { elegir(e.target.files?.[0]); e.target.value = ""; }} />
         </div>

@@ -44,7 +44,7 @@ app.add_middleware(
 
 Area = Literal["planta", "oficina"]
 Modo = Literal["practica", "real"]
-MAX_BYTES = 5 * 1024 * 1024
+MAX_BYTES = 4 * 1024 * 1024  # Vercel acepta hasta ~4.5 MB por petición
 
 historial.iniciar()
 # Semana de datos FICTICIOS para que las gráficas tengan historia (una sola vez por modo).
@@ -153,7 +153,7 @@ def _revisar(contenido: bytes, nombre: str, modo: str) -> dict:
 async def revisar_archivo(archivo: UploadFile = File(...), modo: Modo = Form("real")):
     contenido = await archivo.read(MAX_BYTES + 1)
     if len(contenido) > MAX_BYTES:
-        raise HTTPException(413, "El archivo pesa más de 5 MB.")
+        raise HTTPException(413, "El archivo pesa más de 4 MB.")
     return _revisar(contenido, archivo.filename or "archivo", modo)
 
 
@@ -196,7 +196,7 @@ def _revisar_doc(texto: str, nombre: str, formato: str, modo: str) -> dict:
 async def revisar_documento(archivo: UploadFile = File(...), formato: Formato = Form(...), modo: Modo = Form("real")):
     contenido = await archivo.read(MAX_BYTES + 1)
     if len(contenido) > MAX_BYTES:
-        raise HTTPException(413, "El archivo pesa más de 5 MB.")
+        raise HTTPException(413, "El archivo pesa más de 4 MB.")
     nombre = archivo.filename or "documento"
     try:
         texto = leer_documento(contenido, nombre)
