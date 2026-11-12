@@ -19,13 +19,13 @@ function Opcion({ icono: I, titulo, desc, elegida, onElegir, children }: {
 }) {
   return (
     <button className={`opcion ${elegida ? "sel" : ""}`} role="radio" aria-checked={elegida} onClick={onElegir}>
-      <span className="burbuja"><I size={28} aria-hidden="true" /></span>
+      <span className="burbuja"><I size={22} aria-hidden="true" /></span>
       <span className="opcion-txt">
         <span className="t">{titulo}</span>
         <span className="d">{desc}</span>
         {children}
       </span>
-      <span className="opcion-marca" aria-hidden="true"><Check size={18} strokeWidth={3} /></span>
+      <span className="opcion-marca" aria-hidden="true"><Check size={15} strokeWidth={3} /></span>
     </button>
   );
 }

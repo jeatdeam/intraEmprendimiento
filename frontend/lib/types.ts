@@ -2,6 +2,17 @@ export type Area = "planta" | "oficina";
 export type Modo = "practica" | "real";
 export type Pantalla = "inicio" | "tareas" | "skill" | "datos" | "procesando" | "resultado" | "grafica";
 
+/** Una tarea hecha, guardada en el navegador por perfil (nombre) para volver a ella desde el menú. */
+export interface Actividad {
+  area: Area;
+  modo: Modo;
+  tareaId: string;
+  tarea: string;
+  skillId: string;
+  skill: string;
+  fecha: number;
+}
+
 export interface Skill {
   nombre: string;
   ico: string;

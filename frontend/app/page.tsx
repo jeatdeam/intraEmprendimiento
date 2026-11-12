@@ -11,7 +11,7 @@ import Tutorial from "@/components/Tutorial";
 import Grafica from "@/components/Grafica";
 import { ejecutarTarea, obtenerCatalogo } from "@/lib/api";
 import { guardar, leer } from "@/lib/almacen";
-import type { Area, Catalogo, Modo, Pantalla, Resultado as Res, Tarea } from "@/lib/types";
+import type { Actividad, Area, Catalogo, Modo, Pantalla, Resultado as Res, Tarea } from "@/lib/types";
 
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -32,6 +32,11 @@ export default function Home() {
   const [error, setError] = useState("");
   const [tutorial, setTutorial] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [fs, setFs] = useState(20);
+  const [actividad, setActividad] = useState<Actividad[]>([]);
+  // El historial se guarda por perfil: cada nombre tiene el suyo.
+  const clavePerfil = `actividad_${nombre.trim().toLowerCase() || "sin-nombre"}`;
+  useEffect(() => { if (listo) setActividad(leer<Actividad[]>(clavePerfil, [])); }, [clavePerfil, listo]);
 
   // Cargar preferencias guardadas en el navegador
   useEffect(() => {
@@ -44,6 +49,7 @@ export default function Home() {
 
   const letra = (px: number) => {
     document.documentElement.style.setProperty("--fs", `${px}px`);
+    setFs(px);
     guardar("fs", px);
   };
 
@@ -77,13 +83,33 @@ export default function Home() {
     if (practica && !leer("tutorial", false)) setTutorial(true);
   }
 
-  function elegirTarea(t: Tarea) {
-    setTarea(t);
+  function datosIniciales(t: Tarea, enPractica: boolean) {
+    if (enPractica) return { ...t.ejemplo };
     const base: Record<string, string> = {};
     t.campos.forEach((c) => { if (c.tipo === "select" && c.opciones) base[c.id] = c.opciones[0]; });
-    if (!practica && t.campos.some((c) => c.id === "operador")) base.operador = nombre;
-    setDatos(practica ? { ...t.ejemplo } : base);
+    if (t.campos.some((c) => c.id === "operador")) base.operador = nombre;
+    return base;
+  }
+
+  function elegirTarea(t: Tarea) {
+    setTarea(t);
+    setDatos(datosIniciales(t, practica));
     ir("skill");
+  }
+
+  // Desde el menú: vuelve a abrir una tarea ya hecha, con su mismo skill, lista para completar.
+  async function reabrir(a: Actividad) {
+    try {
+      const cat = catalogo && area === a.area ? catalogo : await obtenerCatalogo(a.area);
+      const t = cat.tareas.find((x) => x.id === a.tareaId);
+      if (!t || !cat.skills[a.skillId]) { mostrarAviso("Esa tarea ya no está disponible"); return; }
+      window.speechSynthesis?.cancel();
+      setArea(a.area); setModo(a.modo); setCatalogo(cat);
+      setTarea(t); setSkillId(a.skillId); setDatos(datosIniciales(t, a.modo === "practica"));
+      ir("datos");
+    } catch (e) {
+      mostrarAviso((e as Error).message);
+    }
   }
 
   async function enviar() {
@@ -101,6 +127,10 @@ export default function Home() {
         animacion,
       ]);
       setResultado(r);
+      const hecha: Actividad = { area, modo, tareaId: tarea.id, tarea: tarea.nombre, skillId, skill: skill.nombre, fecha: Date.now() };
+      const lista = [hecha, ...actividad.filter((x) => !(x.area === area && x.modo === modo && x.tareaId === tarea.id && x.skillId === skillId))].slice(0, 6);
+      setActividad(lista);
+      guardar(clavePerfil, lista);
       if (practica && !practicadas.includes(`${area}:${tarea.id}`)) {
         const nuevas = [...practicadas, `${area}:${tarea.id}`];
         setPracticadas(nuevas);
@@ -124,10 +154,10 @@ export default function Home() {
     <>
       <Encabezado
         planta={catalogo?.planta ?? "Central Renovable"}
-        area={area} modo={modo} enInicio={pantalla === "inicio"}
+        area={area} modo={modo} enInicio={pantalla === "inicio"} letra={fs} actividad={actividad}
+        onInicio={() => { window.speechSynthesis?.cancel(); ir("inicio"); }}
         onAyuda={() => setTutorial(true)}
-        onSalir={() => { window.speechSynthesis?.cancel(); ir("inicio"); }}
-        onLetra={letra}
+        onLetra={letra} onReabrir={reabrir}
       />
       <main>
         <div className="wrap">

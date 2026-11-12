@@ -4,7 +4,7 @@ import { Check, CircleCheck, Copy, Eye, Hourglass, House, Info, Printer, Refresh
 import Documento from "./Documento";
 import type { Skill, Tarea } from "@/lib/types";
 import { Coach, Pasos } from "./Ayudas";
-import { OrbeIA } from "./Ilustraciones";
+import RobotTrabajando from "./RobotTrabajando";
 
 /** Pantalla mientras la IA trabaja: muestra los pasos del skill uno por uno. */
 export function Procesando({ skill, practica, pasoActual }: { skill: Skill; practica: boolean; pasoActual: number }) {
@@ -12,7 +12,7 @@ export function Procesando({ skill, practica, pasoActual }: { skill: Skill; prac
     <>
       <Pasos actual={4} />
       <div className="panel glass proc" aria-live="polite">
-        <OrbeIA />
+        <RobotTrabajando />
         <h1 tabIndex={-1}>La IA está trabajando…</h1>
         <p className="lead" style={{ margin: 0 }}>Aplicando el skill <b>{skill.nombre}</b></p>
         <ul>
@@ -67,7 +67,7 @@ export default function Resultado({ tarea, skill, texto, planta, origen, practic
     <>
       <Pasos actual={5} />
       <header className="cabecera glass">
-        <h1 tabIndex={-1} className="titulo-ok"><CircleCheck size={34} aria-hidden="true" /> ¡Listo! Este es el resultado</h1>
+        <h1 tabIndex={-1} className="titulo-ok"><CircleCheck size={26} aria-hidden="true" /> ¡Listo! Este es el resultado</h1>
         <p className="lead">{tarea.nombre} · skill <b>{skill.nombre}</b></p>
       </header>
       <Coach visible={practica} icono={Eye} titulo="Paso 5: revisa siempre el resultado">

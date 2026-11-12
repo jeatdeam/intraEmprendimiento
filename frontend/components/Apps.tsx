@@ -48,7 +48,7 @@ export function Apps({ apps, soloIconos = false }: { apps: string[]; soloIconos?
           const y = n >= 3 ? -11 * Math.sin((2 * Math.PI * i) / (n - 1)) : (i % 2 ? 7 : -7);
           return (
             <span key={a} className="app-onda" style={{ transform: `translateY(${y.toFixed(1)}px)` }}>
-              <IconoApp id={a} size={40} titulo />
+              <IconoApp id={a} size={30} titulo />
             </span>
           );
         })}

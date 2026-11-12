@@ -25,7 +25,7 @@ export function Coach({ visible, icono: I, titulo, children }: { visible: boolea
   if (!visible) return null;
   return (
     <div className="coach glass" role="note">
-      <span className="coach-ico"><I size={26} aria-hidden="true" /></span>
+      <span className="coach-ico"><I size={20} aria-hidden="true" /></span>
       <div>
         <b>{titulo}</b>
         <p>{children}</p>

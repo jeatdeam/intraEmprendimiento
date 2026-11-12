@@ -95,7 +95,7 @@ export default function Formulario({ tarea, skill, skillId, datos, practica, err
         {equipoId && <HistorialEquipo equipo={equipoId} modo={practica ? "practica" : "real"} />}
         <aside className="skillbox glass" aria-label="Qué hará el skill">
           <div className="skillbox-head">
-            <IconoBurbuja nombre={skill.ico} size={24} />
+            <IconoBurbuja nombre={skill.ico} size={20} />
             <b>Lo que hará el skill “{skill.nombre}”</b>
           </div>
           <ol>{skill.pasos.map((p) => <li key={p}>{p}</li>)}</ol>

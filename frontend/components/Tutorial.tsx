@@ -27,7 +27,7 @@ export default function Tutorial({ onCerrar }: { onCerrar: () => void }) {
   return (
     <div className="modal-bg">
       <div className="modal glass" role="dialog" aria-modal="true" aria-labelledby="mt">
-        <div className="modal-ico" key={n}><I size={56} strokeWidth={1.75} aria-hidden="true" /></div>
+        <div className="modal-ico" key={n}><I size={40} strokeWidth={1.75} aria-hidden="true" /></div>
         <h2 id="mt">{pg.t}</h2>
         <p className="modal-p">{pg.p}</p>
         <div className="dots" aria-label={`Página ${n + 1} de ${PAGINAS.length}`}>

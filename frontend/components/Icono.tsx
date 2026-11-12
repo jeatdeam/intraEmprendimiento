@@ -21,7 +21,7 @@ export function Icono({ nombre, size = 26 }: { nombre: string; size?: number }) 
 }
 
 /** Icono dentro de una "tecla" oscura en relieve. */
-export function IconoBurbuja({ nombre, size = 28 }: { nombre: string; size?: number }) {
+export function IconoBurbuja({ nombre, size = 22 }: { nombre: string; size?: number }) {
   return (
     <span className="burbuja">
       <Icono nombre={nombre} size={size} />
