@@ -54,7 +54,7 @@ h1, h2, h3, p.lead, .card .t, .opcion .t, .logo b, .skillbox-head b, .coach b { 
   position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; z-index: -1; pointer-events: none;
   background:
     linear-gradient(180deg, rgba(10, 16, 20, .34), rgba(10, 16, 20, .14) 42%, rgba(10, 16, 20, .44)),
-    url("/fondo.webp") 58% 50% / cover no-repeat;
+    url("/fondo.webp?v=3") 58% 50% / cover no-repeat;
 }
 
 /* Base de vidrio */
