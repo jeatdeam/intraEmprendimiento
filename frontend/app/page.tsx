@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { CircleAlert, CircleCheck } from "lucide-react";
+import { Creditos } from "creditos-dev";
 import Encabezado from "@/components/Encabezado";
 import Inicio from "@/components/Inicio";
 import { SelectorSkill, SelectorTareas } from "@/components/Selectores";
@@ -160,6 +161,10 @@ export default function Home() {
           )}
         </div>
       </main>
+      {/* Créditos del desarrollador (paquete creditos-dev): siempre al final de la página */}
+      <footer className="pie">
+        <Creditos />
+      </footer>
       {tutorial && <Tutorial onCerrar={cerrarTutorial} />}
       {aviso && <div className="toast" role="status"><CircleCheck size={20} aria-hidden="true" /> {aviso}</div>}
     </>
