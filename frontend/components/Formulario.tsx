@@ -42,8 +42,10 @@ export default function Formulario({ tarea, skill, skillId, datos, practica, err
     <>
       <button className="back" onClick={onVolver}><ArrowLeft size={20} aria-hidden="true" /> Cambiar skill</button>
       <Pasos actual={3} />
-      <h1 tabIndex={-1}>Completa los datos</h1>
-      <p className="lead">{tarea.nombre} · usando el skill <b>{skill.nombre}</b></p>
+      <header className="cabecera glass">
+        <h1 tabIndex={-1}>Completa los datos</h1>
+        <p className="lead">{tarea.nombre} · usando el skill <b>{skill.nombre}</b></p>
+      </header>
       <Coach visible={practica} icono={PencilLine} titulo="Paso 3: revisa los datos">
         {tarea.campos.some((c) => c.tipo === "documento") ? (
           <>Ya cargamos un <b>documento de ejemplo (falso)</b> al que le faltan cosas a propósito. Mira qué partes del

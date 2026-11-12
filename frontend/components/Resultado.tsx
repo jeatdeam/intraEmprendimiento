@@ -66,8 +66,10 @@ export default function Resultado({ tarea, skill, texto, planta, origen, practic
   return (
     <>
       <Pasos actual={5} />
-      <h1 tabIndex={-1} className="titulo-ok"><CircleCheck size={34} aria-hidden="true" /> ¡Listo! Este es el resultado</h1>
-      <p className="lead">{tarea.nombre} · skill <b>{skill.nombre}</b></p>
+      <header className="cabecera glass">
+        <h1 tabIndex={-1} className="titulo-ok"><CircleCheck size={34} aria-hidden="true" /> ¡Listo! Este es el resultado</h1>
+        <p className="lead">{tarea.nombre} · skill <b>{skill.nombre}</b></p>
+      </header>
       <Coach visible={practica} icono={Eye} titulo="Paso 5: revisa siempre el resultado">
         La IA es una gran ayuda, pero <b>puede equivocarse</b>. Lee el resultado antes de usarlo. Tú eres quien
         decide. Prueba también otro skill para ver cómo cambia la respuesta.

@@ -11,8 +11,10 @@ export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onG
   return (
     <>
       <Pasos actual={1} />
-      <h1 tabIndex={-1}>Hola{nombre ? `, ${nombre}` : ""}. ¿Qué tarea vas a hacer?</h1>
-      <p className="lead">Toca el botón de la tarea con la que quieres que la IA te ayude.</p>
+      <header className="cabecera glass">
+        <h1 tabIndex={-1}>Hola{nombre ? `, ${nombre}` : ""}. ¿Qué tarea vas a hacer?</h1>
+        <p className="lead">Toca el botón de la tarea con la que quieres que la IA te ayude.</p>
+      </header>
       <Coach visible={practica} icono={Hand} titulo="Paso 1: elige una tarea">
         Cada botón es un trabajo que la IA puede ayudarte a hacer. Prueba con cualquiera, aquí no puedes romper nada.
       </Coach>
@@ -51,8 +53,10 @@ export function SelectorSkill({ tarea, skills, practica, onElegir, onVolver }: {
     <>
       <button className="back" onClick={onVolver}><ArrowLeft size={20} aria-hidden="true" /> Volver a las tareas</button>
       <Pasos actual={2} />
-      <h1 tabIndex={-1}>{tarea.nombre}: ¿cómo quieres que trabaje la IA?</h1>
-      <p className="lead">Un <b>skill</b> es una habilidad: le dice a la IA de qué forma hacer el trabajo. Elige una.</p>
+      <header className="cabecera glass">
+        <h1 tabIndex={-1}>{tarea.nombre}: ¿cómo quieres que trabaje la IA?</h1>
+        <p className="lead">Un <b>skill</b> es una habilidad: le dice a la IA de qué forma hacer el trabajo. Elige una.</p>
+      </header>
       <Coach visible={practica} icono={Brain} titulo="Paso 2: elige un skill">
         Es como elegir a qué especialista le pides ayuda. El que dice <b>Recomendado</b> es el más usado para esta
         tarea, pero puedes probar otros y comparar el resultado.

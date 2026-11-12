@@ -16,10 +16,10 @@ export default function Encabezado({ planta, area, modo, enInicio, onAyuda, onSa
   const practica = modo === "practica";
   return (
     <>
-      <header className="glass topbar">
+      <header className="topbar">
         <div className="wrap">
           <div className="logo">
-            <Logo size={42} />
+            <Logo size={46} />
             <span>
               <b>{planta}</b>
               <small>Asistente IA</small>

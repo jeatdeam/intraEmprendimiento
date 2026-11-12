@@ -11,13 +11,14 @@ export const metadata: Metadata = {
   description: "Plataforma para que el personal de planta y oficina use la IA con tareas y skills simples.",
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#22343c" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${quicksand.variable} ${montserrat.variable}`}>
       <body>
-        <div className="fondo" aria-hidden="true"><span /><span /><span /></div>
+        {/* Fotografía de paisaje fija detrás de los paneles de vidrio (public/fondo.webp) */}
+        <div className="fondo" aria-hidden="true" />
         {children}
       </body>
     </html>

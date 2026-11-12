@@ -204,11 +204,13 @@ export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () =
   return (
     <>
       <button className="back" onClick={onVolver}><ArrowLeft size={20} aria-hidden="true" /> Volver a las tareas</button>
-      <h1 tabIndex={-1}>Gráfica diaria</h1>
-      <p className="lead">
-        Valores de cada día según los formularios enviados y los archivos revisados
-        {modo === "practica" ? " en modo práctica (datos ficticios)" : ""}. Las marcas muestran los días fuera de rango o con fallas.
-      </p>
+      <header className="cabecera glass">
+        <h1 tabIndex={-1}>Gráfica diaria</h1>
+        <p className="lead">
+          Valores de cada día según los formularios enviados y los archivos revisados
+          {modo === "practica" ? " en modo práctica (datos ficticios)" : ""}. Las marcas muestran los días fuera de rango o con fallas.
+        </p>
+      </header>
 
       <div className="filtros">
         <label className="field sin-margen">
