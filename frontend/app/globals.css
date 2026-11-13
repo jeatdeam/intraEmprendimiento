@@ -15,11 +15,11 @@
   --arena: #ecc09a;          /* acento cálido de la arenisca: modo práctica y recomendados */
   --sobre-arena: #2b1b10;
 
-  --glass-bg: rgba(27, 27, 30, .8);        /* vidrio carbón: paneles principales */
-  --glass-warm: rgba(54, 40, 34, .7);      /* vidrio cálido: tarjetas y preguntas */
+  --glass-bg: rgba(27, 27, 30, .7);        /* vidrio carbón: paneles principales */
+  --glass-warm: rgba(54, 40, 34, .6);      /* vidrio cálido: tarjetas y preguntas */
   --glass-border: rgba(255, 255, 255, .1);
   --glass-shadow: 0 22px 50px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255, 255, 255, .09);
-  --blur: blur(26px) saturate(135%);
+  --blur: blur(5px) saturate(135%); /* desenfoque suave: las hélices de puntos se adivinan detrás del vidrio */
   --pozo: rgba(0, 0, 0, .28);              /* hundido: campos y cajas interiores */
   --linea: rgba(255, 255, 255, .13);
 
@@ -518,12 +518,11 @@ summary { cursor: pointer; font-weight: 700; color: var(--ink); text-decoration:
 .app svg { flex: none; display: block; }
 .zona-archivo .apps { justify-content: center; }
 .app img { flex: none; display: block; object-fit: contain; }
-/* Borde blanco fino alrededor de los íconos de programas (Word, PDF, PowerPoint, texto…) */
-.app img, .app svg, .apps-iconos img, .apps-iconos svg { box-sizing: content-box; padding: 2px; border: 1px solid rgba(255, 255, 255, .9); border-radius: 9px; }
 
 /* Íconos de programas arriba de la tarjeta, al lado del ícono de la tarea (sin texto ni fondo) */
-.card-top { display: flex; align-items: center; gap: 10px; min-height: 58px; margin-bottom: 4px; }
+.card-top { display: flex; align-items: center; gap: 10px; min-height: 4rem; margin-bottom: 4px; }
 .card-top .burbuja { margin-bottom: 0 !important; }
-.apps-iconos { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 10px; padding: 0 4px; }
+.apps-iconos { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 6px; }
 .app-onda { display: block; }
-.apps-iconos img, .apps-iconos svg { display: block; }
+/* Mismo tamaño que la tecla de icono de las demás tarjetas */
+.apps-iconos img, .apps-iconos svg { display: block; width: 2.3rem; height: 2.3rem; }
