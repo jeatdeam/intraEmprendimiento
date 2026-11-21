@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { CircleAlert, CircleCheck, CircleX, Download, FileText, LoaderCircle, Upload } from "lucide-react";
-import { cambiarFormato, revisarDocumento, revisarDocumentoEjemplo } from "@/lib/api";
-import type { Modo, RevisionFormato } from "@/lib/types";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { CircleAlert, CircleCheck, CircleX, Download, FileText, FolderOpen, LoaderCircle, Sparkles, Upload } from "lucide-react";
+import { cambiarFormato, obtenerListos, revisarDocumento, revisarDocumentoEjemplo, revisarEnvio, revisarListo } from "@/lib/api";
+import type { Envio, Listo, Modo, RevisionFormato } from "@/lib/types";
 import { Apps } from "./Apps";
+import FilaArchivo from "./FilaArchivo";
+import { EstadoArchivo, fechaHora } from "./MiHistorial";
 
 // Revisiones ya hechas, para mostrarlas otra vez si el empleado vuelve a esta pantalla.
 const cache = new Map<string, RevisionFormato>();
@@ -14,27 +16,36 @@ interface Props {
   formato: string;          // turno | planta | semanal | falla (sale del skill elegido)
   valor: string;
   onCambio: (revisionId: string) => void;
+  usuario?: string;         // id del usuario: con él se muestran sus archivos enviados y los de ejemplo
+  enviados?: Envio[];       // archivos que el usuario ya subió (de su historial)
 }
 
-/** Sube un Word/PDF/texto y muestra si cumple el formato oficial elegido con el skill. */
-export default function CampoDocumento({ id, modo, formato, valor, onCambio }: Props) {
+/**
+ * Sube un Word/PDF/texto y muestra si cumple el formato oficial elegido con el skill.
+ * Debajo están los archivos que el usuario ya envió con ese formato y 5 archivos de ejemplo: se arrastran al recuadro.
+ */
+export default function CampoDocumento({ id, modo, formato, valor, onCambio, usuario, enviados }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [rev, setRev] = useState<RevisionFormato | null>(() => cache.get(valor) ?? null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [arrastrando, setArrastrando] = useState(false);
+  const [ejemplos, setEjemplos] = useState<Listo[]>([]);
+  const [elegido, setElegido] = useState("");          // clave del archivo de la lista que está cargado
   const practica = modo === "practica";
 
-  async function revisar(p: Promise<RevisionFormato>) {
+  async function revisar(p: Promise<RevisionFormato>, clave = "") {
     setCargando(true);
     setError("");
     try {
       const r = await p;
       cache.set(r.id, r);
       setRev(r);
+      setElegido(clave);
       onCambio(r.id);
     } catch (e) {
       setRev(null);
+      setElegido("");
       onCambio("");
       setError((e as Error).message);
     } finally {
@@ -49,27 +60,58 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formato]);
 
+  useEffect(() => {
+    if (!usuario) return;
+    let vigente = true;
+    obtenerListos(usuario, formato).then((l) => { if (vigente) setEjemplos(l); }, () => { if (vigente) setEjemplos([]); });
+    return () => { vigente = false; };
+  }, [usuario, formato]);
+
+  // Documentos que el usuario ya envió para revisar con este mismo formato.
+  const documentos = (enviados ?? []).filter((e) => e.revision?.tipo === "documento");
+  const mios = documentos.filter((e) => e.skill_id === `fmt_${formato}`);
+
+  /** Carga un archivo de las listas: "envio:12" (ya enviado) o "listo:turno-2" (de ejemplo). */
+  const cargar = (clave: string) => {
+    if (!usuario || cargando) return;
+    const [tipo, ref] = clave.split(":");
+    if (tipo === "envio" && mios.some((e) => String(e.id) === ref)) revisar(revisarEnvio(usuario, Number(ref), formato, modo), clave);
+    else if (tipo === "listo" && ejemplos.some((l) => l.id === ref)) revisar(revisarListo(usuario, ref, formato, modo), clave);
+  };
+
   const elegir = (f?: File | null) => { if (f) revisar(revisarDocumento(f, formato, modo)); };
+  const soltar = (e: DragEvent) => {
+    e.preventDefault();
+    setArrastrando(false);
+    const propio = e.dataTransfer.files?.[0];
+    if (propio) { if (!practica) elegir(propio); return; }
+    cargar(e.dataTransfer.getData("text/plain"));
+  };
   const grupos = rev ? [...new Set(rev.checks.map((c) => c.grupo))] : [];
 
   return (
     <div className="archivo">
-      {!practica && (
+      {(!practica || usuario) && (
         <div
           className={`zona-archivo ${arrastrando ? "on" : ""}`}
           onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
-          onDragLeave={() => setArrastrando(false)}
-          onDrop={(e) => { e.preventDefault(); setArrastrando(false); elegir(e.dataTransfer.files[0]); }}
+          onDragLeave={() => setArrastrando(false)} onDrop={soltar}
         >
           <FileText size={34} aria-hidden="true" />
-          <span>Arrastra aquí tu documento o</span>
-          <button type="button" id={id} className="btn sec" onClick={() => input.current?.click()} disabled={cargando}>
-            <Upload size={20} aria-hidden="true" /> {rev ? "Elegir otro documento" : "Elegir documento"}
-          </button>
-          <Apps apps={["word", "pdf", "powerpoint", "texto"]} />
-          <span className="hint">.docx, .pdf, .pptx o .txt · máximo 4 MB.</span>
-          <input ref={input} type="file" hidden accept=".docx,.pdf,.pptx,.txt,.md"
-            onChange={(e) => { elegir(e.target.files?.[0]); e.target.value = ""; }} />
+          {practica ? (
+            <span id={id} tabIndex={-1}>Arrastra aquí uno de los archivos de abajo, o tócalo</span>
+          ) : (
+            <>
+              <span>{usuario ? "Arrastra aquí un documento de tu equipo o uno de la lista de abajo" : "Arrastra aquí tu documento o"}</span>
+              <button type="button" id={id} className="btn sec" onClick={() => input.current?.click()} disabled={cargando}>
+                <Upload size={20} aria-hidden="true" /> {rev ? "Elegir otro documento" : "Elegir documento"}
+              </button>
+              <Apps apps={["word", "pdf", "powerpoint", "texto"]} />
+              <span className="hint">.docx, .pdf, .pptx o .txt · máximo 4 MB.</span>
+              <input ref={input} type="file" hidden accept=".docx,.pdf,.pptx,.txt,.md"
+                onChange={(e) => { elegir(e.target.files?.[0]); e.target.value = ""; }} />
+            </>
+          )}
         </div>
       )}
       <div className="row descargas">
@@ -115,7 +157,49 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio }: P
           {rev.observaciones.length > 0 && (
             <ul className="estructura">{rev.observaciones.map((o) => <li key={o}><CircleAlert size={16} aria-hidden="true" /> {o}</li>)}</ul>
           )}
-          <p className="hint">Al enviar, la IA lee el documento y te explica qué corregir según el skill «{rev.nombre}».</p>
+          <p className="hint">
+            Al enviar, la IA lee el documento y te explica qué corregir según el skill «{rev.nombre}»
+            {rev.aceptado ? "." : ", y verás el antes y el después con cada error marcado."}
+          </p>
+        </div>
+      )}
+
+      {usuario && (
+        <div className="elegibles">
+          <section aria-labelledby={`${id}_mios`}>
+            <h3 id={`${id}_mios`} className="elegibles-tit"><FolderOpen size={18} aria-hidden="true" /> Tus archivos enviados</h3>
+            {mios.length ? (
+              <ul className="elegibles-lista">
+                {mios.map((e) => (
+                  <FilaArchivo key={e.id} clave={`envio:${e.id}`} archivo={e.archivo ?? "documento"} activo={elegido === `envio:${e.id}`}
+                    onElegir={() => cargar(`envio:${e.id}`)}>
+                    <small>{fechaHora(e.creado)}{e.modo === "practica" && <span className="hist-modo">Práctica</span>}</small>
+                    <EstadoArchivo e={e} />
+                  </FilaArchivo>
+                ))}
+              </ul>
+            ) : (
+              <p className="elegibles-vacio">Todavía no has enviado documentos con este formato.</p>
+            )}
+            {documentos.length > mios.length && (
+              <p className="elegibles-vacio">
+                Tienes {documentos.length - mios.length} {documentos.length - mios.length === 1 ? "documento más" : "documentos más"} de
+                otros formatos en «Mi historial».
+              </p>
+            )}
+          </section>
+          <section aria-labelledby={`${id}_ejemplos`}>
+            <h3 id={`${id}_ejemplos`} className="elegibles-tit"><Sparkles size={18} aria-hidden="true" /> Archivos de ejemplo</h3>
+            <ul className="elegibles-lista">
+              {ejemplos.map((l) => (
+                <FilaArchivo key={l.id} clave={`listo:${l.id}`} archivo={l.archivo} activo={elegido === `listo:${l.id}`}
+                  onElegir={() => cargar(`listo:${l.id}`)}>
+                  <small>{l.detalle}</small>
+                </FilaArchivo>
+              ))}
+            </ul>
+          </section>
+          <p className="hint">Arrastra cualquiera al recuadro de arriba, o tócalo, para cargarlo.</p>
         </div>
       )}
     </div>

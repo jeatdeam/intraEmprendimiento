@@ -103,7 +103,8 @@ export default function FondoHelice() {
         renderer.setSize(w, h, false);
         camara.right = w; camara.top = h;
         camara.updateProjectionMatrix();
-        grande.grupo.scale.setScalar(Math.min(w, h) * (w < 700 ? 0.42 : 0.46));
+        const U = Math.min(w, h) * (w < 700 ? 0.42 : 0.46); // largo del aspa grande en píxeles
+        grande.grupo.scale.setScalar(U);
         grande.grupo.position.set(w < 700 ? w * 0.5 : w * 0.8, h * 0.56, 0);
         // Misma cuenta que hace el navegador con background-size: cover
         const esc = Math.max(w / IMG.w, h / IMG.h);

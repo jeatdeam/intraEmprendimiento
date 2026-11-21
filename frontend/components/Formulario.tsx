@@ -1,7 +1,7 @@
 "use client";
 import { useRef, type FormEvent } from "react";
 import { ArrowLeft, CircleAlert, Lock, PencilLine, RotateCcw, Sparkles } from "lucide-react";
-import type { Skill, Tarea } from "@/lib/types";
+import type { Envio, Skill, Tarea } from "@/lib/types";
 import { Coach, Pasos } from "./Ayudas";
 import { IconoBurbuja } from "./Icono";
 import CampoArchivo from "./CampoArchivo";
@@ -15,6 +15,8 @@ interface Props {
   datos: Record<string, string>;
   practica: boolean;
   error: string;
+  usuario: string;          // id del usuario
+  enviados: Envio[];        // archivos que ya subió (de su historial)
   onCambio: (id: string, valor: string) => void;
   onFalta: (msg: string) => void;
   onEjemplo: () => void;
@@ -22,7 +24,7 @@ interface Props {
   onVolver: () => void;
 }
 
-export default function Formulario({ tarea, skill, skillId, datos, practica, error, onCambio, onFalta, onEjemplo, onEnviar, onVolver }: Props) {
+export default function Formulario({ tarea, skill, skillId, datos, practica, error, usuario, enviados, onCambio, onFalta, onEjemplo, onEnviar, onVolver }: Props) {
   const form = useRef<HTMLFormElement>(null);
   // Si el formulario tiene un equipo conocido (AG-07, INV-03…), al costado se muestran sus días anteriores.
   const equipoId = (datos.equipo ?? "").match(/\b(AG|INV|TR)-\d{2}\b/i)?.[0].toUpperCase();
@@ -49,10 +51,12 @@ export default function Formulario({ tarea, skill, skillId, datos, practica, err
       <Coach visible={practica} icono={PencilLine} titulo="Paso 3: revisa los datos">
         {tarea.campos.some((c) => c.tipo === "documento") ? (
           <>Ya cargamos un <b>documento de ejemplo (falso)</b> al que le faltan cosas a propósito. Mira qué partes del
-            formato oficial cumple y cuáles no, y luego envíalo a la IA para que te diga cómo corregirlo.</>
+            formato oficial cumple y cuáles no, y luego envíalo a la IA para que te diga cómo corregirlo. Más abajo hay
+            otros archivos de ejemplo: arrastra uno al recuadro para probar con él.</>
         ) : tarea.campos.some((c) => c.tipo === "archivo") ? (
           <>Ya cargamos un <b>archivo de ejemplo (falso)</b> con algunos errores a propósito. Mira lo que encontró la
-            revisión y luego envíalo a la IA para que te lo explique.</>
+            revisión y luego envíalo a la IA para que te lo explique. Más abajo hay otros archivos de ejemplo: arrastra
+            uno al recuadro para probar con él.</>
         ) : (
           <>Ya llenamos todo con <b>datos de ejemplo (falsos)</b>. Puedes cambiarlos si quieres. Fíjate que escribimos de
             forma informal: la IA se encarga de ordenarlo.</>
@@ -67,10 +71,10 @@ export default function Formulario({ tarea, skill, skillId, datos, practica, err
               {c.hint && <span className="hint">{c.hint}</span>}
               {c.tipo === "documento" ? (
                 <CampoDocumento id={`f_${c.id}`} modo={practica ? "practica" : "real"} valor={datos[c.id] ?? ""}
-                  formato={skillId.replace(/^fmt_/, "")} onCambio={(v) => onCambio(c.id, v)} />
+                  formato={skillId.replace(/^fmt_/, "")} onCambio={(v) => onCambio(c.id, v)} usuario={usuario} enviados={enviados} />
               ) : c.tipo === "archivo" ? (
                 <CampoArchivo id={`f_${c.id}`} modo={practica ? "practica" : "real"} valor={datos[c.id] ?? ""}
-                  onCambio={(v) => onCambio(c.id, v)} />
+                  onCambio={(v) => onCambio(c.id, v)} usuario={usuario} enviados={enviados} />
               ) : c.tipo === "select" ? (
                 <select id={`f_${c.id}`} value={datos[c.id] ?? c.opciones?.[0] ?? ""} onChange={(e) => onCambio(c.id, e.target.value)}>
                   {c.opciones?.map((o) => <option key={o}>{o}</option>)}

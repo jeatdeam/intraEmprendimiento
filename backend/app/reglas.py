@@ -140,9 +140,31 @@ def _leer_filas(contenido: bytes, nombre: str) -> list[list]:
     raise ValueError("Formato no admitido. Sube un archivo Excel (.xlsx) o CSV (.csv).")
 
 
+def _celda(v) -> str:
+    """El valor de una celda como texto, para poder guardar la tabla y volver a revisarla después."""
+    if v is None:
+        return ""
+    if isinstance(v, datetime):
+        return v.date().isoformat()
+    if isinstance(v, date):
+        return v.isoformat()
+    return str(v)
+
+
 def validar_archivo(contenido: bytes, nombre: str) -> dict:
     """Revisa estructura y rangos. Devuelve un resumen con todos los problemas encontrados."""
-    filas = [f for f in _leer_filas(contenido, nombre) if any(str(c or "").strip() for c in f)]
+    return validar_filas(_leer_filas(contenido, nombre), nombre)
+
+
+def validar_filas(filas: list[list], nombre: str) -> dict:
+    """Lo mismo a partir de las filas ya leídas. `tabla` son esas filas como texto (se guardan en el historial)."""
+    filas = [f for f in filas if any(str(c or "").strip() for c in f)]
+    res = _validar(filas, nombre)
+    res["tabla"] = [[_celda(c) for c in f] for f in filas[:MAX_FILAS + 1]]
+    return res
+
+
+def _validar(filas: list[list], nombre: str) -> dict:
     estructura: list[str] = []
     problemas: list[dict] = []
     registros: list[dict] = []

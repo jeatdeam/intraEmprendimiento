@@ -66,7 +66,9 @@ INSPECTORES = ["Juan Pérez", "Marta Díaz", "Luis Rojas"]
 
 def sembrar(modo: str) -> bool:
     with _con() as c:
-        if c.execute("SELECT COUNT(*) FROM envios WHERE modo = ? AND origen = 'semilla'", (modo,)).fetchone()[0]:
+        # Estos son los datos de toda la planta (sin usuario); el historial de cada usuario va en semilla_usuarios.py.
+        if c.execute("SELECT COUNT(*) FROM envios WHERE modo = ? AND origen = 'semilla' AND usuario = ''",
+                     (modo,)).fetchone()[0]:
             return False
         rnd = random.Random(2026)
         hoy = date.today()

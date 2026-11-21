@@ -1,18 +1,19 @@
-import { ArrowLeft, Brain, ChartLine, Check, Hand, Star } from "lucide-react";
+import { ArrowLeft, Brain, ChartLine, Check, Hand, History, Star } from "lucide-react";
 import type { Skill, Tarea } from "@/lib/types";
 import { Coach, Pasos } from "./Ayudas";
 import { IconoBurbuja } from "./Icono";
 import { Apps } from "./Apps";
 
-export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onGrafica }: {
+export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onGrafica, onHistorial }: {
   nombre: string; tareas: Tarea[]; practica: boolean; hechas: string[]; onElegir: (t: Tarea) => void; onGrafica: () => void;
+  onHistorial: () => void;
 }) {
   const n = tareas.filter((t) => hechas.includes(t.id)).length;
   return (
     <>
       <Pasos actual={1} />
       <header className="cabecera glass">
-        <h1 tabIndex={-1}>Hola{nombre ? `, ${nombre}` : ""}. ¿Qué tarea vas a hacer?</h1>
+        <h1 tabIndex={-1}>Hola{nombre ? `, ${nombre.split(" ")[0]}` : ""}. ¿Qué tarea vas a hacer?</h1>
         <p className="lead">Toca el botón de la tarea con la que quieres que la IA te ayude.</p>
       </header>
       <Coach visible={practica} icono={Hand} titulo="Paso 1: elige una tarea">
@@ -39,9 +40,14 @@ export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onG
           </button>
         ))}
       </div>
-      <button className="btn sec ver-grafica" onClick={onGrafica}>
-        <ChartLine size={22} aria-hidden="true" /> Ver la gráfica diaria de lo enviado
-      </button>
+      <div className="row ver-grafica">
+        <button className="btn sec" onClick={onHistorial}>
+          <History size={22} aria-hidden="true" /> Ver mi historial
+        </button>
+        <button className="btn sec" onClick={onGrafica}>
+          <ChartLine size={22} aria-hidden="true" /> Ver mis gráficas
+        </button>
+      </div>
     </>
   );
 }

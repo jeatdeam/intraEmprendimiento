@@ -1,16 +1,52 @@
 export type Area = "planta" | "oficina";
 export type Modo = "practica" | "real";
-export type Pantalla = "inicio" | "tareas" | "skill" | "datos" | "procesando" | "resultado" | "grafica";
+export type Pantalla = "inicio" | "tareas" | "skill" | "datos" | "procesando" | "resultado" | "grafica" | "historial" | "envio";
 
-/** Una tarea hecha, guardada en el navegador por perfil (nombre) para volver a ella desde el menú. */
-export interface Actividad {
+export type Perfil = "planta" | "ejecutivo" | "novato";
+
+/** Un usuario de la plataforma. Su perfil define dónde trabaja y con qué modo entra por defecto. */
+export interface Usuario {
+  id: string;
+  nombre: string;
+  perfil: Perfil;
+  perfil_nombre: string;
+  cargo: string;
   area: Area;
   modo: Modo;
-  tareaId: string;
+  consultas: number;
+  archivos: number;
+}
+
+/** Lo esencial de la revisión de un archivo subido (documento con formato oficial o archivo de datos). */
+export type ResumenRevision =
+  | { tipo: "documento"; formato: string; codigo: string; aceptado: boolean; cumple: number; total: number; palabras: number }
+  | { tipo: "archivo"; filas: number; equipos: number; desde: string | null; hasta: string | null; errores: number; bajos: number; altos: number; fallas: number };
+
+/** Un envío guardado en el historial del usuario: una consulta o un archivo subido. */
+export interface Envio {
+  id: number;
+  creado: string;
+  modo: Modo;
+  area: Area;
+  tarea_id: string;
   tarea: string;
-  skillId: string;
+  skill_id: string;
   skill: string;
-  fecha: number;
+  archivo: string | null;
+  resumen: string;
+  origen: string;
+  revision: ResumenRevision | null;
+}
+
+export interface EnvioDetalle extends Envio {
+  campos: { label: string; valor: string }[];
+  documento: string;
+  texto: string;
+}
+
+export interface HistorialUsuario {
+  consultas: Envio[];
+  archivos: Envio[];
 }
 
 export interface Skill {
@@ -129,4 +165,43 @@ export interface HistorialEquipo {
   }[];
   eventos: Record<string, { estado: EstadoDato; detalle: string }[]>;
   dias_mal: string[];
+}
+
+/** Archivo ficticio listo para evaluar (se arrastra al recuadro en "Mi historial"). */
+export interface Listo {
+  id: string;
+  archivo: string;
+  formato: string;
+  formato_nombre: string;
+  codigo: string;
+  detalle: string;
+}
+
+/** Archivo de datos de ejemplo (Excel / CSV) para arrastrar al recuadro del formulario. */
+export type ArchivoEjemplo = Pick<Listo, "id" | "archivo" | "detalle">;
+
+export type Marca = "error" | "falta" | "aviso" | "nuevo" | "corregido" | "movido" | "pendiente";
+
+/** Una línea de la hoja del antes o del después, con su marca si tiene un problema o un cambio. */
+export interface LineaHoja { t: string; m?: Marca; nota?: string }
+
+export interface HojaRevisada {
+  aceptado: boolean;
+  cumple: number;
+  total: number;
+  observaciones: string[];
+  lineas: LineaHoja[];
+}
+
+/** Antes y después de un documento evaluado contra un formato oficial. */
+export interface Comparacion {
+  archivo: string;
+  formato: string;
+  nombre: string;
+  codigo: string;
+  revision: string;
+  antes: HojaRevisada;
+  despues: HojaRevisada & { texto: string };
+  cambios: number;
+  pendientes: number;
 }

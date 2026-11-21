@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, CircleAlert, CircleCheck, Inbox, LoaderCircle, OctagonX, RefreshCw } from "lucide-react";
 import { obtenerHistorial } from "@/lib/api";
-import type { DiaSerie, EstadoDato, Historial, Modo, Serie } from "@/lib/types";
+import type { DiaSerie, EstadoDato, Historial, Modo, Serie, Usuario } from "@/lib/types";
 
 const ESTADOS: Record<EstadoDato, { txt: string; Ico: typeof CircleAlert }> = {
   ok: { txt: "Normal", Ico: CircleCheck },
@@ -83,13 +83,20 @@ function Chart({ serie, dias, fallasForm }: { serie: Serie; dias: string[]; fall
   const x = (i: number) => M.l + bandaX * (i + 0.5);
   const cadaN = Math.ceil(dias.length / Math.max(2, Math.floor(pw / 70)));
 
-  // Línea: solo une días seguidos que tienen valor.
+  // Línea continua: solo une días seguidos que tienen valor.
+  // Línea punteada: salta los días sin datos (hay pocos envíos cuando se ven los de una sola persona).
   let d = "";
+  let dSalto = "";
+  let ultimo: number | null = null;
   dias.forEach((f, i) => {
     const v = porDia[f]?.valor;
     if (v == null) return;
     const prev = i > 0 ? porDia[dias[i - 1]]?.valor : null;
     d += `${prev == null ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+    if (prev == null && ultimo !== null) {
+      dSalto += `M${x(ultimo).toFixed(1)},${y(porDia[dias[ultimo]].valor!).toFixed(1)} L${x(i).toFixed(1)},${y(v).toFixed(1)} `;
+    }
+    ultimo = i;
   });
 
   const tecla = (e: KeyboardEvent) => {
@@ -120,7 +127,7 @@ function Chart({ serie, dias, fallasForm }: { serie: Serie; dias: string[]; fall
             <line className="banda-borde" x1={M.l} x2={ancho - M.r} y1={y(serie.max)} y2={y(serie.max)} />
             <line className="banda-borde" x1={M.l} x2={ancho - M.r} y1={y(serie.min)} y2={y(serie.min)} />
             <text className="eje banda-txt" x={ancho - M.r - 6} y={y(serie.max) + 15} textAnchor="end">
-              Rango normal {num(serie.min)}–{num(serie.max)} {serie.unidad}
+              {serie.min === serie.max ? `Meta ${num(serie.max)} ${serie.unidad}` : `Rango normal ${num(serie.min)}–${num(serie.max)} ${serie.unidad}`}
             </text>
           </g>
         )}
@@ -129,6 +136,7 @@ function Chart({ serie, dias, fallasForm }: { serie: Serie; dias: string[]; fall
         ))}
         <text className="eje" x={8} y={12}>{serie.unidad}</text>
         {sel !== null && <line className="cruz" x1={x(sel)} x2={x(sel)} y1={M.t} y2={M.t + ph} />}
+        <path className="linea salto" d={dSalto} />
         <path className="linea" d={d} />
         {dias.map((f, i) => {
           const p = porDia[f];
@@ -162,8 +170,13 @@ function Chart({ serie, dias, fallasForm }: { serie: Serie; dias: string[]; fall
   );
 }
 
-export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () => void }) {
+export default function Grafica({ modo, usuario, onVolver, volverA }: {
+  modo: Modo; usuario: Usuario; onVolver: () => void; volverA: string;
+}) {
   const [dias, setDias] = useState(30);
+  // "mio" = solo lo que envió este usuario · "planta" = lo de todos (incluye la semana de datos de ejemplo)
+  const [alcance, setAlcance] = useState<"mio" | "planta">("mio");
+  const mio = alcance === "mio";
   const [hist, setHist] = useState<Historial | null>(null);
   const [serieId, setSerieId] = useState("");
   const [cargando, setCargando] = useState(true);
@@ -173,7 +186,7 @@ export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () =
     setCargando(true);
     setError("");
     try {
-      const h = await obtenerHistorial(modo, n);
+      const h = await obtenerHistorial(modo, n, mio ? usuario.id : undefined);
       setHist(h);
       setSerieId((s) => (h.series.some((x) => x.id === s) ? s : h.series.find((x) => x.min !== null)?.id ?? h.series[0]?.id ?? ""));
     } catch (e) {
@@ -183,7 +196,7 @@ export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () =
     }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { cargar(dias); }, [dias, modo]);
+  useEffect(() => { cargar(dias); }, [dias, modo, alcance, usuario.id]);
 
   const serie = hist?.series.find((s) => s.id === serieId);
   const rango = hist ? diasEntre(hist.desde, hist.hasta) : [];
@@ -203,11 +216,13 @@ export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () =
 
   return (
     <>
-      <button className="back" onClick={onVolver}><ArrowLeft size={20} aria-hidden="true" /> Volver a las tareas</button>
+      <button className="back" onClick={onVolver}><ArrowLeft size={20} aria-hidden="true" /> {volverA}</button>
       <header className="cabecera glass">
-        <h1 tabIndex={-1}>Gráfica diaria</h1>
+        <h1 tabIndex={-1}>{mio ? `Gráficas de ${usuario.nombre}` : "Gráfica diaria de toda la planta"}</h1>
         <p className="lead">
-          Valores de cada día según los formularios enviados y los archivos revisados
+          {mio
+            ? "Valores de cada día según tus consultas y los archivos que subiste"
+            : "Valores de cada día según lo que enviaron todos los usuarios y los datos de la planta"}
           {modo === "practica" ? " en modo práctica (datos ficticios)" : ""}. Las marcas muestran los días fuera de rango o con fallas.
         </p>
       </header>
@@ -219,6 +234,10 @@ export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () =
             {hist?.series.map((s) => <option key={s.id} value={s.id}>{s.nombre}{s.alertas ? ` · ${s.alertas} días con alerta` : ""}</option>)}
           </select>
         </label>
+        <div className="segmento" role="group" aria-label="De quién son los datos">
+          <button className={mio ? "on" : ""} aria-pressed={mio} onClick={() => setAlcance("mio")}>Mis datos</button>
+          <button className={!mio ? "on" : ""} aria-pressed={!mio} onClick={() => setAlcance("planta")}>Toda la planta</button>
+        </div>
         <div className="segmento" role="group" aria-label="Periodo">
           {PERIODOS.map((p) => (
             <button key={p} className={p === dias ? "on" : ""} aria-pressed={p === dias} onClick={() => setDias(p)}>{p} días</button>
@@ -233,7 +252,7 @@ export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () =
       {hist && (
         <>
           <div className="tiles">
-            <div className="tile glass"><span>Envíos en {dias} días</span><b>{hist.envios.total}</b></div>
+            <div className="tile glass"><span>{mio ? "Mis envíos" : "Envíos"} en {dias} días</span><b>{hist.envios.total}</b></div>
             <div className="tile glass"><span>Días con alguna alerta</span><b>{diasAlerta}</b></div>
             <div className="tile glass"><span>Días con falla de máquina</span><b>{diasFalla}</b></div>
           </div>
@@ -306,7 +325,7 @@ export default function Grafica({ modo, onVolver }: { modo: Modo; onVolver: () =
 
           {hist.envios.por_tarea.length > 0 && (
             <div className="panel glass">
-              <h2>Formularios enviados</h2>
+              <h2>{mio ? "Lo que envié, por tarea" : "Formularios enviados"}</h2>
               <ul className="envios">
                 {hist.envios.por_tarea.map((e) => <li key={e.tarea}><span>{e.tarea}</span><b>{e.n}</b></li>)}
               </ul>

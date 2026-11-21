@@ -1,4 +1,5 @@
-// Preferencias del empleado guardadas en el navegador (nombre, área, tamaño de letra, avance).
+// Preferencias guardadas en el navegador (último usuario elegido, tamaño de letra, tutorial visto).
+// El historial y el avance de práctica de cada usuario se guardan en el servidor, no aquí.
 const PREFIJO = "iaPlanta_";
 
 export function leer<T>(clave: string, defecto: T): T {

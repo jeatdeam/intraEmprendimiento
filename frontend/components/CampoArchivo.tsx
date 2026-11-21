@@ -1,9 +1,13 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, CircleAlert, CircleCheck, Download, FileSpreadsheet, LoaderCircle, OctagonX, Upload } from "lucide-react";
-import { revisarArchivo, revisarEjemplo } from "@/lib/api";
-import type { Modo, Problema, Revision } from "@/lib/types";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import {
+  ArrowDown, ArrowUp, CircleAlert, CircleCheck, Download, FileSpreadsheet, FolderOpen, LoaderCircle, OctagonX, Sparkles, Upload,
+} from "lucide-react";
+import { obtenerListosDatos, revisarArchivo, revisarEjemplo, revisarEnvioDatos, revisarListoDatos } from "@/lib/api";
+import type { ArchivoEjemplo, Envio, Modo, Problema, Revision } from "@/lib/types";
 import { Apps } from "./Apps";
+import FilaArchivo from "./FilaArchivo";
+import { EstadoArchivo, fechaHora } from "./MiHistorial";
 
 const ETIQUETA: Record<Problema["tipo"], { txt: string; Ico: typeof CircleAlert }> = {
   falla: { txt: "Falla de máquina", Ico: OctagonX },
@@ -20,27 +24,36 @@ interface Props {
   modo: Modo;
   valor: string;
   onCambio: (revisionId: string) => void;
+  usuario?: string;         // id del usuario: con él se muestran sus archivos enviados y los de ejemplo
+  enviados?: Envio[];       // archivos que el usuario ya subió (de su historial)
 }
 
-/** Sube un Excel/CSV, lo revisa en el servidor y muestra lo que encontró antes de enviarlo a la IA. */
-export default function CampoArchivo({ id, modo, valor, onCambio }: Props) {
+/**
+ * Sube un Excel/CSV, lo revisa en el servidor y muestra lo que encontró antes de enviarlo a la IA.
+ * Debajo están los archivos de datos que el usuario ya envió y 5 archivos de ejemplo: se arrastran al recuadro.
+ */
+export default function CampoArchivo({ id, modo, valor, onCambio, usuario, enviados }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [rev, setRev] = useState<Revision | null>(() => cache.get(valor) ?? null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [arrastrando, setArrastrando] = useState(false);
+  const [ejemplos, setEjemplos] = useState<ArchivoEjemplo[]>([]);
+  const [elegido, setElegido] = useState("");          // clave del archivo de la lista que está cargado
   const practica = modo === "practica";
 
-  async function revisar(p: Promise<Revision>) {
+  async function revisar(p: Promise<Revision>, clave = "") {
     setCargando(true);
     setError("");
     try {
       const r = await p;
       cache.set(r.id, r);
       setRev(r);
+      setElegido(clave);
       onCambio(r.id);
     } catch (e) {
       setRev(null);
+      setElegido("");
       onCambio("");
       setError((e as Error).message);
     } finally {
@@ -54,26 +67,56 @@ export default function CampoArchivo({ id, modo, valor, onCambio }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!usuario) return;
+    let vigente = true;
+    obtenerListosDatos(usuario).then((l) => { if (vigente) setEjemplos(l); }, () => { if (vigente) setEjemplos([]); });
+    return () => { vigente = false; };
+  }, [usuario]);
+
+  // Archivos de datos (Excel / CSV) que el usuario ya envió.
+  const mios = (enviados ?? []).filter((e) => e.revision?.tipo === "archivo");
+
+  /** Carga un archivo de las listas: "envio:12" (ya enviado) o "listo:inversores" (de ejemplo). */
+  const cargar = (clave: string) => {
+    if (!usuario || cargando) return;
+    const [tipo, ref] = clave.split(":");
+    if (tipo === "envio" && mios.some((e) => String(e.id) === ref)) revisar(revisarEnvioDatos(usuario, Number(ref), modo), clave);
+    else if (tipo === "listo" && ejemplos.some((l) => l.id === ref)) revisar(revisarListoDatos(usuario, ref, modo), clave);
+  };
+
   const elegir = (f?: File | null) => { if (f) revisar(revisarArchivo(f, modo)); };
+  const soltar = (e: DragEvent) => {
+    e.preventDefault();
+    setArrastrando(false);
+    const propio = e.dataTransfer.files?.[0];
+    if (propio) { if (!practica) elegir(propio); return; }
+    cargar(e.dataTransfer.getData("text/plain"));
+  };
 
   const r = rev?.resumen;
   return (
     <div className="archivo">
-      {!practica && (
+      {(!practica || usuario) && (
         <div
           className={`zona-archivo ${arrastrando ? "on" : ""}`}
           onDragOver={(e) => { e.preventDefault(); setArrastrando(true); }}
-          onDragLeave={() => setArrastrando(false)}
-          onDrop={(e) => { e.preventDefault(); setArrastrando(false); elegir(e.dataTransfer.files[0]); }}
+          onDragLeave={() => setArrastrando(false)} onDrop={soltar}
         >
           <FileSpreadsheet size={34} aria-hidden="true" />
           <Apps apps={["excel", "csv"]} />
-          <span>Arrastra aquí el archivo o</span>
-          <button type="button" id={id} className="btn sec" onClick={() => input.current?.click()} disabled={cargando}>
-            <Upload size={20} aria-hidden="true" /> {rev ? "Elegir otro archivo" : "Elegir archivo"}
-          </button>
-          <input ref={input} type="file" hidden accept=".xlsx,.xlsm,.csv,.txt"
-            onChange={(e) => { elegir(e.target.files?.[0]); e.target.value = ""; }} />
+          {practica ? (
+            <span id={id} tabIndex={-1}>Arrastra aquí uno de los archivos de abajo, o tócalo</span>
+          ) : (
+            <>
+              <span>{usuario ? "Arrastra aquí un archivo de tu equipo o uno de la lista de abajo" : "Arrastra aquí el archivo o"}</span>
+              <button type="button" id={id} className="btn sec" onClick={() => input.current?.click()} disabled={cargando}>
+                <Upload size={20} aria-hidden="true" /> {rev ? "Elegir otro archivo" : "Elegir archivo"}
+              </button>
+              <input ref={input} type="file" hidden accept=".xlsx,.xlsm,.csv,.txt"
+                onChange={(e) => { elegir(e.target.files?.[0]); e.target.value = ""; }} />
+            </>
+          )}
         </div>
       )}
       <a className="descarga" href={practica ? "/api/archivo/ejemplo" : "/api/archivo/plantilla"}>
@@ -124,6 +167,39 @@ export default function CampoArchivo({ id, modo, valor, onCambio }: Props) {
             </details>
           )}
           <p className="hint">Al enviar, la IA explica estos resultados con el skill elegido y los datos quedan en la gráfica.</p>
+        </div>
+      )}
+
+      {usuario && (
+        <div className="elegibles">
+          <section aria-labelledby={`${id}_mios`}>
+            <h3 id={`${id}_mios`} className="elegibles-tit"><FolderOpen size={18} aria-hidden="true" /> Tus archivos enviados</h3>
+            {mios.length ? (
+              <ul className="elegibles-lista">
+                {mios.map((e) => (
+                  <FilaArchivo key={e.id} clave={`envio:${e.id}`} archivo={e.archivo ?? "archivo"} activo={elegido === `envio:${e.id}`}
+                    onElegir={() => cargar(`envio:${e.id}`)}>
+                    <small>{fechaHora(e.creado)}{e.modo === "practica" && <span className="hist-modo">Práctica</span>}</small>
+                    <EstadoArchivo e={e} />
+                  </FilaArchivo>
+                ))}
+              </ul>
+            ) : (
+              <p className="elegibles-vacio">Todavía no has enviado archivos de datos.</p>
+            )}
+          </section>
+          <section aria-labelledby={`${id}_ejemplos`}>
+            <h3 id={`${id}_ejemplos`} className="elegibles-tit"><Sparkles size={18} aria-hidden="true" /> Archivos de ejemplo</h3>
+            <ul className="elegibles-lista">
+              {ejemplos.map((l) => (
+                <FilaArchivo key={l.id} clave={`listo:${l.id}`} archivo={l.archivo} activo={elegido === `listo:${l.id}`}
+                  onElegir={() => cargar(`listo:${l.id}`)}>
+                  <small>{l.detalle}</small>
+                </FilaArchivo>
+              ))}
+            </ul>
+          </section>
+          <p className="hint">Arrastra cualquiera al recuadro de arriba, o tócalo, para cargarlo.</p>
         </div>
       )}
     </div>

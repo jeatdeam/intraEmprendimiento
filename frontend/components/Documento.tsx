@@ -45,11 +45,12 @@ function parsear(texto: string) {
   for (const bruta of lineas) {
     const l = bruta.trim();
     if (!l) continue;
+    // Las filas de tabla van primero: una fila con códigos en mayúsculas (AG-07, INV-03) no es un título.
+    if (/^ {2,}\S/.test(bruta) && bruta.trim().split(/\s{2,}/).length > 1) { agregar({ t: "tabla", filas: [bruta.trim().split(/\s{2,}/)] }); continue; }
     const num = l.match(/^(\d+)[.)]\s+(.+)$/);
     if (num && esMayus(num[2])) { enCabecera = false; secciones.push({ n: num[1], titulo: num[2], bloques: [] }); continue; }
     if (!num && esMayus(l) && l.length < 70 && !KV.test(l)) { enCabecera = false; secciones.push({ titulo: l, bloques: [] }); continue; }
     if (/^c[oó]digo:/i.test(l) && enCabecera) { codigo = l.replace(/^c[oó]digo:\s*/i, ""); continue; }
-    if (/^ {2,}\S/.test(bruta) && bruta.trim().split(/\s{2,}/).length > 1) { agregar({ t: "tabla", filas: [bruta.trim().split(/\s{2,}/)] }); continue; }
     if (/^[•\-*]\s+/.test(l)) { agregar({ t: "lista", items: [l.replace(/^[•\-*]\s+/, "")] }); continue; }
     if (/^☐\s*/.test(l)) { agregar({ t: "check", items: [l.replace(/^☐\s*/, "")] }); continue; }
     if (num) { agregar({ t: "pasos", items: [num[2]] }); continue; }
@@ -82,14 +83,21 @@ function Contenido({ b, firmas }: { b: Bloque; firmas: boolean }) {
     case "lista": return <ul>{b.items.map((x, i) => <li key={i}><Valor v={x} /></li>)}</ul>;
     case "check": return <ul className="doc-check">{b.items.map((x, i) => <li key={i}><span className="caja" aria-hidden="true" />{x}</li>)}</ul>;
     case "pasos": return <ol>{b.items.map((x, i) => <li key={i}><Valor v={x} /></li>)}</ol>;
-    case "tabla":
+    case "tabla": {
+      // La primera fila es el encabezado cuando solo tiene palabras (sin cifras ni barras de gráfico).
+      const conCabecera = b.filas.length > 1 && !/[\d█]/.test(b.filas[0].join(""));
+      const cuerpo = conCabecera ? b.filas.slice(1) : b.filas;
       return (
         <div className="tabla-scroll">
-          <table className="doc-tabla"><tbody>
-            {b.filas.map((f, i) => <tr key={i}>{f.map((c, j) => <td key={j}>{c}</td>)}</tr>)}
-          </tbody></table>
+          <table className="doc-tabla">
+            {conCabecera && <thead><tr>{b.filas[0].map((c, j) => <th key={j} scope="col">{c}</th>)}</tr></thead>}
+            <tbody>
+              {cuerpo.map((f, i) => <tr key={i}>{f.map((c, j) => <td key={j}>{c}</td>)}</tr>)}
+            </tbody>
+          </table>
         </div>
       );
+    }
     case "kv":
       if (firmas) {
         return (
@@ -107,10 +115,11 @@ function Contenido({ b, firmas }: { b: Bloque; firmas: boolean }) {
   }
 }
 
-export default function Documento({ texto, planta }: { texto: string; planta: string }) {
+/** `fecha` es el día en que se generó (para los documentos guardados en el historial); por defecto, hoy. */
+export default function Documento({ texto, planta, fecha }: { texto: string; planta: string; fecha?: string }) {
   const d = parsear(texto);
   const [cod, rev] = d.codigo.split(/\s*·\s*/);
-  const hoy = new Date().toLocaleDateString("es", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const hoy = (fecha ? new Date(fecha) : new Date()).toLocaleDateString("es", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   return (
     <article className="documento" aria-label={d.titulo}>

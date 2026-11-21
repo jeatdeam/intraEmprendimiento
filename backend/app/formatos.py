@@ -16,7 +16,7 @@ from xml.etree import ElementTree as ET
 
 FORMATOS: dict[str, dict] = {
     "turno": {
-        "nombre": "Reporte de turno", "codigo": "OP-FOR-001", "revision": "02", "area": "Operaciones de Planta",
+        "nombre": "Reporte de turno", "codigo": "OP-FOR-001", "revision": "03", "area": "Operaciones de Planta",
         "campos": [
             {"label": "Fecha", "alias": ["fecha"], "tipo": "fecha"},
             {"label": "Turno", "alias": ["turno"], "tipo": "texto"},
@@ -25,8 +25,10 @@ FORMATOS: dict[str, dict] = {
         ],
         "secciones": [
             {"label": "Resumen del turno", "alias": ["resumen del turno", "resumen", "descripcion"]},
+            {"label": "Producción", "alias": ["produccion", "produccion del turno", "generacion"]},
             {"label": "Novedades y eventos", "alias": ["novedades y eventos", "novedades", "eventos"]},
-            {"label": "Pendientes", "alias": ["pendientes", "acciones", "proximos pasos"]},
+            {"label": "Seguridad", "alias": ["seguridad", "seguridad y medio ambiente", "hse"]},
+            {"label": "Pendientes", "alias": ["pendientes", "pendientes para el siguiente turno", "acciones", "proximos pasos"]},
             {"label": "Firmas", "alias": ["firmas", "firma", "aprobaciones"]},
         ],
     },
@@ -64,7 +66,7 @@ FORMATOS: dict[str, dict] = {
         ],
     },
     "falla": {
-        "nombre": "Aviso de falla urgente", "codigo": "MA-FOR-010", "revision": "03", "area": "Mantenimiento",
+        "nombre": "Aviso de falla urgente", "codigo": "MA-FOR-010", "revision": "04", "area": "Mantenimiento",
         "campos": [
             {"label": "Fecha y hora", "alias": ["fecha y hora", "fecha"], "tipo": "fecha"},
             {"label": "Equipo", "alias": ["equipo", "equipo afectado"], "tipo": "texto"},
@@ -75,8 +77,10 @@ FORMATOS: dict[str, dict] = {
         ],
         "secciones": [
             {"label": "Descripción de la falla", "alias": ["descripcion de la falla", "descripcion"]},
+            {"label": "Impacto en la operación", "alias": ["impacto en la operacion", "impacto", "consecuencias"]},
             {"label": "Riesgo para personas", "alias": ["riesgo para personas", "riesgos", "riesgo"]},
             {"label": "Acciones inmediatas", "alias": ["acciones inmediatas", "acciones tomadas", "acciones"]},
+            {"label": "Acciones recomendadas", "alias": ["acciones recomendadas", "recomendaciones", "seguimiento"]},
             {"label": "Firmas", "alias": ["firmas", "firma", "aprobaciones"]},
         ],
     },
@@ -191,7 +195,7 @@ def revisar_formato(texto: str, fid: str, archivo: str) -> dict:
         elif c["tipo"] == "numero" and not re.search(r"\d", valor):
             check("Campos", c["label"], False, f"«{valor}» debe tener un número con su unidad.")
         elif c["tipo"] == "opcion" and not any(_n(valor).startswith(o) for o in c["opciones"]):
-            check("Campos", c["label"], False, f"«{valor}» no es válido. Usa: {', '.join(o.capitalize() for o in c['opciones'])}.")
+            check("Campos", c["label"], False, f"«{valor}» no es válido. Usa: {', '.join(o.capitalize() for o in c['opciones']).replace('Critica', 'Crítica')}.")
         else:
             check("Campos", c["label"], True, valor[:80])
 
@@ -256,20 +260,144 @@ _VALORES = {
 }
 
 
+FIRMAS_VACIAS = "Elaborado por: {autor}\nRevisado por: ____________________\nAprobado por: ____________________"
+
+# Contenido FICTICIO de cada sección de los documentos de ejemplo (uno por formato).
+_TEXTOS: dict[str, dict[str, str]] = {
+    "turno": {
+        "Resumen del turno": (
+            "Turno con operación estable. Se generaron 412 MWh, un 3 % sobre el pronóstico del día. El parque eólico "
+            "trabajó con viento medio de 9 m/s y el parque solar con cielo despejado desde las 08:30. Hubo una parada "
+            "corta del aerogenerador AG-07 por ráfagas, sin daños."),
+        "Producción": (
+            "  Instalación  Energía (MWh)  Disponibilidad\n"
+            "  Parque Eólico Norte  268  97 %\n"
+            "  Parque Solar Sur  144  99 %\n"
+            "Potencia media del turno: 51,5 MW (rango normal 30–60 MW).\n"
+            "Pérdida estimada por la parada del AG-07: 3 MWh."),
+        "Novedades y eventos": (
+            "• 07:50 — El aerogenerador AG-07 se detuvo 40 minutos por ráfagas sobre el límite y volvió a operar solo.\n"
+            "• 09:15 — Se limpió el panel del inversor INV-03; la temperatura del gabinete bajó de 58 a 49 °C.\n"
+            "• 11:00 — Llegó el camión de repuestos: se recibieron 2 sellos de eje y 4 filtros de ventilación.\n"
+            "• 13:20 — Ronda de cierre sin alarmas activas en el SCADA."),
+        "Seguridad": (
+            "• Sin accidentes ni incidentes en el turno.\n"
+            "• Charla de 5 minutos sobre trabajo en altura antes de la ronda.\n"
+            "• Se aplicó bloqueo y etiquetado (LOTO) durante la limpieza del INV-03."),
+        "Pendientes": (
+            "• Revisar la cerca perimetral del sector norte (poste 14 inclinado).\n"
+            "• Confirmar con mantenimiento la fecha del balanceo del aspa 2 del AG-01."),
+    },
+    "planta": {
+        "Resumen del día": (
+            "Día de operación normal con una generación total de 1.240 MWh y una disponibilidad de 97,8 %. La única "
+            "indisponibilidad relevante fue la del aerogenerador AG-07, detenido por mantenimiento correctivo. "
+            "No hubo eventos de seguridad ni reclamos del coordinador del sistema."),
+        "Producción": (
+            "  Instalación  Energía (MWh)  Pronóstico (MWh)  Diferencia\n"
+            "  Parque Eólico Norte  790  820  -3,7 %\n"
+            "  Parque Solar Sur  450  440  +2,3 %\n"
+            "  Total planta  1.240  1.260  -1,6 %\n"
+            "La diferencia con el pronóstico se explica por la parada del AG-07 (aprox. 38 MWh no generados)."),
+        "Equipos fuera de servicio": (
+            "• AG-07 — Detenido desde las 15:20 del día anterior por sobretemperatura del aceite de la multiplicadora. "
+            "Se cambia el sello del eje principal; retorno estimado mañana a las 10:00.\n"
+            "• INV-05 — 2 horas sin comunicación con el SCADA; se reinició la tarjeta y quedó operativo."),
+        "Seguridad": (
+            "• 0 accidentes, 0 incidentes, 1 observación preventiva (orden y limpieza en bodega).\n"
+            "• Permisos de trabajo emitidos: 3 (uno de altura, dos eléctricos).\n"
+            "• Sin derrames: el aceite del AG-07 se contuvo con paños absorbentes y se dispuso como residuo peligroso."),
+        "Pendientes": (
+            "• Cerrar la orden de trabajo del AG-07 y registrar las horas de parada.\n"
+            "• Programar la limpieza de filtros de los inversores del sector C.\n"
+            "• Enviar el pronóstico de generación de mañana antes de las 12:00."),
+    },
+    "semanal": {
+        "Resumen ejecutivo": (
+            "La planta generó 8.650 MWh en la semana, un 2 % bajo la meta de 8.820 MWh. La disponibilidad promedio "
+            "fue de 96,9 %. El evento principal fue la falla del aerogenerador AG-07 (fuga de aceite y "
+            "sobretemperatura), que estuvo 31 horas fuera de servicio. No hubo accidentes."),
+        "Producción de la semana": (
+            "  Instalación  Energía (MWh)  Meta (MWh)  Cumplimiento\n"
+            "  Parque Eólico Norte  5.480  5.700  96 %\n"
+            "  Parque Solar Sur  3.170  3.120  102 %\n"
+            "  Total  8.650  8.820  98 %\n"
+            "Mejor día: jueves, con 1.310 MWh. Día más bajo: martes, con 1.090 MWh (AG-07 detenido)."),
+        "Fallas y mantenimiento": (
+            "• AG-07 — Fuga de aceite en la góndola que terminó en sobretemperatura. Se cambió el sello del eje "
+            "principal y se rellenó el aceite de la multiplicadora. 31 horas detenido.\n"
+            "• INV-03 — Caída de voltaje por un conector flojo en el string 4 y filtro de ventilación sucio. Corregido.\n"
+            "• AG-01 — Desbalance leve en el aspa 2; balanceo programado para la próxima parada.\n"
+            "Mantenimientos preventivos cumplidos: 11 de 12 (92 %)."),
+        "Seguridad": (
+            "• 0 accidentes con tiempo perdido; 142 días sin accidentes.\n"
+            "• 2 observaciones preventivas cerradas y 1 abierta (señalización del acceso a la subestación).\n"
+            "• Se completó la capacitación de trabajo en altura de 6 técnicos."),
+        "Plan de la próxima semana": (
+            "• Balanceo del aspa 2 del AG-01 (martes, con ventana de viento bajo).\n"
+            "• Limpieza de paneles de los sectores B y C.\n"
+            "• Auditoría interna del procedimiento de bloqueo y etiquetado.\n"
+            "• Recepción de 20 pares de guantes dieléctricos clase 2."),
+    },
+    "falla": {
+        "Descripción de la falla": (
+            "El inversor INV-03 hace un ruido fuerte y continuo, y la pantalla muestra el error E-214. El gabinete está "
+            "más caliente de lo normal (64 °C medidos en la puerta; lo normal es hasta 60 °C). El problema empezó cerca "
+            "de las 10:10 y no se quita al reiniciar la pantalla."),
+        "Impacto en la operación": (
+            "• La fila 12 del sector B bajó su producción de 14 a 3 MWh por día.\n"
+            "• Si el inversor se desconecta por protección se pierden cerca de 1,8 MW en horas de sol.\n"
+            "• No afecta a los demás inversores del sector."),
+        "Riesgo para personas": (
+            "Riesgo de quemadura por contacto con el gabinete y riesgo eléctrico si se abre sin bloqueo. "
+            "No hay personas trabajando en la fila 12. La zona quedó señalizada con cinta y cono."),
+        "Acciones inmediatas": (
+            "• Se avisó al supervisor de turno y a mantenimiento eléctrico a las 10:25.\n"
+            "• Se señalizó el equipo y se prohibió abrir el gabinete.\n"
+            "• Se tomó foto del código de error y de la temperatura."),
+        "Acciones recomendadas": (
+            "• Revisar el ventilador y el filtro del gabinete con el equipo bloqueado (LOTO).\n"
+            "• Medir el voltaje AC y reapretar los conectores del string 4.\n"
+            "• Registrar la orden de trabajo y el tiempo fuera de servicio."),
+    },
+}
+
+
+def armar_documento(fid: str, valores: dict[str, str], secciones: dict[str, str], *, autor: str = "",
+                    planta: str = "Central Renovable", sin_codigo: bool = False, sin: tuple[str, ...] = ()) -> str:
+    """Arma el texto de un documento con un formato oficial.
+
+    `valores` son los campos del encabezado y `secciones` el contenido de cada sección.
+    Para simular documentos mal hechos: `sin_codigo` quita la línea del código y `sin` omite campos o secciones.
+    """
+    f = FORMATOS[fid]
+    lin = [f["nombre"].upper()]
+    if not sin_codigo:
+        lin.append(f"Código: {f['codigo']} · Revisión: {f['revision']}")
+    lin += [f"{planta} — {f['area']}", ""]
+    lin += [f"{c['label']}: {valores.get(c['label'], '')}" for c in f["campos"] if c["label"] not in sin]
+    lin.append("")
+    n = 0
+    for s in f["secciones"]:
+        if s["label"] in sin:
+            continue
+        n += 1
+        cuerpo = secciones.get(s["label"]) or (FIRMAS_VACIAS.format(autor=autor or "____________________")
+                                               if s["label"] == "Firmas" else "[completar]")
+        lin += [f"{n}. {s['label'].upper()}", cuerpo, ""]
+    return "\n".join(lin).rstrip() + "\n"
+
+
 def documento_ejemplo(fid: str) -> str:
     """Documento ficticio con errores a propósito (le falta el código, una sección y un campo mal llenado)."""
     f = FORMATOS[fid]
-    lin = [f["nombre"].upper(), "Central Renovable (ficticia)", ""]
-    for i, c in enumerate(f["campos"]):
-        v = _VALORES.get(c["label"], "dato")
-        if i == 0 and c["tipo"] == "fecha":
-            v = "ayer en la mañana"          # fecha mal escrita a propósito
-        lin.append(f"{c['label']}: {v}")
-    lin.append("")
-    secciones = [s for k, s in enumerate(f["secciones"]) if k != len(f["secciones"]) - 2]  # falta una sección
-    for i, s in enumerate(secciones):
-        lin += [f"{i + 1}. {s['label'].upper()}", "Texto de ejemplo de esta sección.", ""]
-    return "\n".join(lin)
+    valores = dict(_VALORES)
+    if f["campos"][0]["tipo"] == "fecha":
+        valores[f["campos"][0]["label"]] = "ayer en la mañana"          # fecha mal escrita a propósito
+    falta = f["secciones"][-2]["label"]                                  # falta una sección
+    autor = valores.get("Operador") or valores.get("Elaborado por") or valores.get("Reportado por", "")
+    return armar_documento(fid, valores, _TEXTOS[fid], autor=autor, planta="Central Renovable (ficticia)",
+                           sin_codigo=True, sin=(falta,))
 
 
 def plantilla_docx(fid: str) -> bytes:
@@ -309,7 +437,7 @@ def plantilla_docx(fid: str) -> bytes:
     return out.getvalue()
 
 
-def fecha_larga() -> str:
-    h = datetime.now()
+def fecha_larga(cuando: datetime | None = None) -> str:
+    h = cuando or datetime.now()
     dias = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
     return f"{dias[h.weekday()]}, {h.day} de {MESES[h.month - 1]} de {h.year}"

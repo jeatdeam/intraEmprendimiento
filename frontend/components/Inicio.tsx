@@ -1,17 +1,20 @@
 import { ArrowRight, BadgeCheck, Building2, Check, CircleCheck, Factory, GraduationCap, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import type { Area, Modo } from "@/lib/types";
+import type { Area, Modo, Usuario } from "@/lib/types";
 
 interface Props {
-  nombre: string;
+  usuarios: Usuario[];
+  usuario: Usuario | null;
   area: Area | null;
   modo: Modo | null;
   practicadas: number;
-  onNombre: (v: string) => void;
+  onUsuario: (u: Usuario) => void;
   onArea: (a: Area) => void;
   onModo: (m: Modo) => void;
   onEntrar: () => void;
 }
+
+export const iniciales = (nombre: string) => nombre.split(" ").slice(0, 2).map((p) => p[0]).join("").toUpperCase();
 
 /** Opción grande de una pregunta: icono en una tecla, texto y una marca redonda que se rellena al elegirla. */
 function Opcion({ icono: I, titulo, desc, elegida, onElegir, children }: {
@@ -30,21 +33,34 @@ function Opcion({ icono: I, titulo, desc, elegida, onElegir, children }: {
   );
 }
 
-export default function Inicio({ nombre, area, modo, practicadas, onNombre, onArea, onModo, onEntrar }: Props) {
+export default function Inicio({ usuarios, usuario, area, modo, practicadas, onUsuario, onArea, onModo, onEntrar }: Props) {
+  const falta = !usuario || !area || !modo;
   return (
     <div className="inicio">
       <section className="hero glass">
-        <div>
-          <h1 tabIndex={-1}>Bienvenido al Asistente de IA</h1>
-          <p className="lead">
-            Una herramienta simple para que la inteligencia artificial te ayude con tus tareas. Solo tienes que tocar
-            botones.
-          </p>
-        </div>
-        <div className="field">
-          <label htmlFor="nombre"><span className="paso-n">1</span> ¿Cómo te llamas?</label>
-          <input type="text" id="nombre" value={nombre} onChange={(e) => onNombre(e.target.value)}
-            placeholder="Escribe tu nombre" autoComplete="given-name" maxLength={80} />
+        <h1 tabIndex={-1}>Bienvenido al Asistente de IA</h1>
+        <p className="lead">
+          Una herramienta simple para que la inteligencia artificial te ayude con tus tareas. Solo tienes que tocar
+          botones.
+        </p>
+      </section>
+
+      <section className="pregunta glass quien">
+        <h2 id="lblUsuario"><span className="paso-n">1</span> Elige tu usuario</h2>
+        <div className="usuarios" role="radiogroup" aria-labelledby="lblUsuario">
+          {usuarios.map((u) => {
+            const sel = usuario?.id === u.id;
+            return (
+              <button key={u.id} className={`usuario ${sel ? "sel" : ""}`} role="radio" aria-checked={sel} onClick={() => onUsuario(u)}>
+                <span className={`avatar ${u.perfil}`} aria-hidden="true">{iniciales(u.nombre)}</span>
+                <span className="t">{u.nombre}</span>
+                <span className="d">{u.cargo}</span>
+                <span className={`perfil ${u.perfil}`}>{u.perfil_nombre}</span>
+                <span className="usuario-cuenta">{u.consultas} consultas · {u.archivos} archivos</span>
+                <span className="opcion-marca" aria-hidden="true"><Check size={15} strokeWidth={3} /></span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -74,15 +90,18 @@ export default function Inicio({ nombre, area, modo, practicadas, onNombre, onAr
       <section className="entrar glass">
         <div className="eleccion" aria-live="polite">
           <span className="eleccion-tit">Elegiste:</span>
+          <span className={`eleccion-chip ${usuario ? "on" : ""}`}>
+            {usuario ? <><CircleCheck size={18} aria-hidden="true" /> {usuario.nombre}</> : "Falta: tu usuario"}
+          </span>
           <span className={`eleccion-chip ${area ? "on" : ""}`}>
             {area ? <><CircleCheck size={18} aria-hidden="true" /> {area === "planta" ? "En planta" : "En oficina"}</> : "Falta: dónde trabajas"}
           </span>
           <span className={`eleccion-chip ${modo ? "on" : ""}`}>
             {modo ? <><CircleCheck size={18} aria-hidden="true" /> {modo === "practica" ? "Practicar" : "Trabajar de verdad"}</> : "Falta: qué quieres hacer"}
           </span>
-          {(!area || !modo) && <p className="hint-end">Elige una opción en cada pregunta para continuar.</p>}
+          {falta && <p className="hint-end">Elige tu usuario y una opción en cada pregunta para continuar.</p>}
         </div>
-        <button className="btn pri" onClick={onEntrar} disabled={!area || !modo}>Entrar <ArrowRight size={22} aria-hidden="true" /></button>
+        <button className="btn pri" onClick={onEntrar} disabled={falta}>Entrar <ArrowRight size={22} aria-hidden="true" /></button>
       </section>
     </div>
   );

@@ -42,6 +42,16 @@ def iniciar():
         CREATE TABLE IF NOT EXISTS revisiones (
             id TEXT PRIMARY KEY, creado TEXT, modo TEXT, datos TEXT, guardada INTEGER DEFAULT 0);
         """)
+        # Columnas agregadas después (historial por usuario): se crean si la base es de una versión anterior.
+        nuevas = {"envios": {"usuario": "TEXT DEFAULT ''", "archivo": "TEXT", "resumen": "TEXT DEFAULT ''",
+                             "extra": "TEXT", "resultado": "TEXT"},
+                  "puntos": {"usuario": "TEXT DEFAULT ''"}}
+        for tabla, cols in nuevas.items():
+            hay = {f["name"] for f in c.execute(f"PRAGMA table_info({tabla})")}
+            for col, tipo in cols.items():
+                if col not in hay:
+                    c.execute(f"ALTER TABLE {tabla} ADD COLUMN {col} {tipo}")
+        c.execute("CREATE INDEX IF NOT EXISTS ix_envios_usuario ON envios (usuario, creado)")
 
 
 # ───────────── Revisiones de archivo (pendientes hasta que se envían a la IA) ─────────────
@@ -82,11 +92,50 @@ def puntos_inspeccion(fecha: str, datos: dict) -> list[tuple]:
     return out
 
 
+SERIE_FORMATO = "Formato de documentos (cumplimiento)"
+
+
+def resumen_revision(res: dict) -> dict:
+    """Lo esencial de la revisión de un archivo subido, para mostrarlo en el historial del usuario."""
+    if "checks" in res:      # documento revisado contra un formato oficial
+        return {"tipo": "documento", "formato": res["nombre"], "codigo": res["codigo"], "aceptado": res["aceptado"],
+                "cumple": res["cumple"], "total": res["total"], "palabras": res.get("palabras", 0)}
+    r = res["resumen"]       # archivo de datos (Excel / CSV)
+    return {"tipo": "archivo", "filas": res["filas"], "equipos": r["equipos"], "desde": r["desde"], "hasta": r["hasta"],
+            "errores": r["errores"], "bajos": r["bajos"], "altos": r["altos"], "fallas": r["fallas"]}
+
+
+def _resumen(tarea: dict, datos: dict, rev: dict | None) -> str:
+    """Una línea que describe el envío en la lista del historial."""
+    if rev and rev["tipo"] == "documento":
+        return f"Formato {rev['formato']} ({rev['codigo']}) · cumple {rev['cumple']} de {rev['total']} puntos"
+    if rev:
+        fuera = rev["bajos"] + rev["altos"]
+        return (f"{rev['filas']} filas de {rev['equipos']} equipos · {rev['errores']} errores · "
+                f"{fuera} fuera de rango · {rev['fallas']} posibles fallas")
+    if tarea["id"] == "turno" and datos.get("generacion", "").strip():
+        return f"Turno {datos.get('turno', '').lower()} · {datos['generacion'].strip()} MWh generados"
+    cortos = [datos[c["id"]].strip() for c in tarea["campos"]
+              if c["tipo"] in ("text", "select") and not c.get("medida") and datos.get(c["id"], "").strip()]
+    largo = next((datos[c["id"]].strip() for c in tarea["campos"] if c["tipo"] == "area" and datos.get(c["id"], "").strip()), "")
+    txt = " · ".join(cortos[:3]) or " · ".join(" ".join(l.split()) for l in largo.splitlines() if l.strip())
+    return txt if len(txt) <= 130 else txt[:127].rstrip() + "…"
+
+
 def registrar(modo: str, area: str, tarea: dict, skill_id: str, nombre: str, origen: str,
-              datos: dict, revision: tuple[str, dict, bool] | None = None) -> None:
-    hoy = date.today().isoformat()
+              datos: dict, revision: tuple[str, dict, bool] | None = None, *,
+              usuario: str = "", texto: str = "", archivo: dict | None = None,
+              cuando: datetime | None = None) -> int:
+    """Guarda un envío con su resultado y los valores que van a la gráfica.
+
+    `archivo` es el resultado de la revisión del archivo o documento subido (si la tarea lleva uno).
+    `cuando` permite fechar el envío en el pasado (solo lo usan los datos de ejemplo).
+    """
+    cuando = cuando or datetime.now()
+    hoy = cuando.date().isoformat()
     puntos: list[tuple] = []
     tid = tarea["id"]
+    rev = resumen_revision(archivo) if archivo else None
 
     if tid == "turno":
         v = numero(re.sub(r"[^\d.,]", "", datos.get("generacion", "")))
@@ -105,7 +154,7 @@ def registrar(modo: str, area: str, tarea: dict, skill_id: str, nombre: str, ori
             fuera = [(h, v) for h, v in vals if v < mn or v > mx]
             est = "ok" if not fuera else ("bajo" if any(v < mn for _, v in fuera) else "alto")
             det = [f"{h}: {fmt(v)} {u} ({'bajo' if v < mn else 'alto'})" for h, v in fuera]
-            puntos.append((hoy, "Potencia (lecturas)", u, prom, mn, mx, est, det))
+            puntos.append((hoy, "Potencia (lecturas)", u, round(prom, 1), mn, mx, est, det))
 
     elif tid == "inspeccion":
         puntos += puntos_inspeccion(hoy, datos)
@@ -115,28 +164,86 @@ def registrar(modo: str, area: str, tarea: dict, skill_id: str, nombre: str, ori
         puntos.append((hoy, "Fallas reportadas", "", None, None, None, "falla",
                        [f"{equipo} · {datos.get('urgencia', '')}".strip(" ·")]))
 
+    elif rev and rev["tipo"] == "documento":
+        # Cada documento revisado deja un punto: qué porcentaje del formato oficial cumple (la meta es 100 %).
+        pct = round(rev["cumple"] / max(rev["total"], 1) * 100)
+        det = [f"{archivo['archivo']}: {'aceptado' if rev['aceptado'] else 'no aceptado'} · "
+               f"{rev['cumple']} de {rev['total']} puntos del formato {rev['codigo']}"]
+        puntos.append((hoy, SERIE_FORMATO, "%", pct, 100, 100, "ok" if rev["aceptado"] else "bajo", det))
+
+    # Lo que escribió la persona (sin el campo del archivo), para volver a verlo desde el historial.
+    campos = [{"label": c["label"], "valor": datos[c["id"]].strip()} for c in tarea["campos"]
+              if c["tipo"] not in ("archivo", "documento") and datos.get(c["id"], "").strip()]
+    extra = {"campos": campos, "revision": rev}
+    if rev and rev["tipo"] == "documento":
+        extra["documento"] = archivo.get("texto", "")
+    elif rev and archivo.get("tabla"):
+        extra["tabla"] = archivo["tabla"]      # las filas del archivo de datos, para poder cargarlo otra vez
+
     with _con() as c:
         cur = c.execute(
-            "INSERT INTO envios (creado, modo, area, tarea_id, tarea, skill_id, nombre, origen) VALUES (?,?,?,?,?,?,?,?)",
-            (datetime.now().isoformat(timespec="seconds"), modo, area, tid, tarea["nombre"], skill_id, nombre, origen))
+            "INSERT INTO envios (creado, modo, area, tarea_id, tarea, skill_id, nombre, origen, usuario, archivo, "
+            "resumen, extra, resultado) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (cuando.isoformat(timespec="seconds"), modo, area, tid, tarea["nombre"], skill_id, nombre, origen, usuario,
+             archivo["archivo"] if archivo else None, _resumen(tarea, datos, rev),
+             json.dumps(extra, ensure_ascii=False), texto))
         eid = cur.lastrowid
         if revision and not revision[2]:
             rid, res, _ = revision
             for r in res["registros"]:
-                # Si ya se subió un archivo con ese equipo y día, el nuevo lo reemplaza (no se duplica).
-                c.execute("DELETE FROM puntos WHERE modo = ? AND fecha = ? AND serie = ?",
-                          (modo, r["fecha"], f"{r['equipo']} ({r['tipo']})"))
+                # Si esa persona ya subió un archivo con ese equipo y día, el nuevo lo reemplaza (no se duplica).
+                c.execute("DELETE FROM puntos WHERE modo = ? AND usuario = ? AND fecha = ? AND serie = ?",
+                          (modo, usuario, r["fecha"], f"{r['equipo']} ({r['tipo']})"))
                 puntos.append((r["fecha"], f"{r['equipo']} ({r['tipo']})", "MWh", r["valor"], r["min"], r["max"],
                                r["estado"], r["detalle"]))
-            c.execute("UPDATE revisiones SET guardada = 1 WHERE id = ?", (rid,))
+            if rid:
+                c.execute("UPDATE revisiones SET guardada = 1 WHERE id = ?", (rid,))
         if tid == "inspeccion" and puntos:
             # La última inspección del día de ese equipo reemplaza a la anterior (p. ej. al probar otro skill).
             equipo_id = puntos[0][1].split(" · ")[0]
-            c.execute("DELETE FROM puntos WHERE modo = ? AND fecha = ? AND serie LIKE ?", (modo, hoy, f"{equipo_id} · %"))
+            c.execute("DELETE FROM puntos WHERE modo = ? AND usuario = ? AND fecha = ? AND serie LIKE ?",
+                      (modo, usuario, hoy, f"{equipo_id} · %"))
         c.executemany(
-            "INSERT INTO puntos (envio_id, modo, fecha, serie, unidad, valor, min, max, estado, detalle) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
-            [(eid, modo, f, s, u, v, mn, mx, e, json.dumps(d, ensure_ascii=False)) for f, s, u, v, mn, mx, e, d in puntos])
+            "INSERT INTO puntos (envio_id, modo, fecha, serie, unidad, valor, min, max, estado, detalle, usuario) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            [(eid, modo, f, s, u, v, mn, mx, e, json.dumps(d, ensure_ascii=False), usuario)
+             for f, s, u, v, mn, mx, e, d in puntos])
+    return eid
+
+
+# ───────────── Historial de cada usuario ─────────────
+
+def _fila_envio(f: sqlite3.Row) -> dict:
+    extra = json.loads(f["extra"] or "{}")
+    return {"id": f["id"], "creado": f["creado"], "modo": f["modo"], "area": f["area"], "tarea_id": f["tarea_id"],
+            "tarea": f["tarea"], "skill_id": f["skill_id"], "archivo": f["archivo"], "resumen": f["resumen"] or "",
+            "origen": f["origen"], "revision": extra.get("revision")}
+
+
+def contar_envios() -> dict[str, dict]:
+    """Cuántas consultas y cuántos archivos subidos tiene cada usuario."""
+    with _con() as c:
+        filas = c.execute("SELECT usuario, SUM(archivo IS NULL) consultas, SUM(archivo IS NOT NULL) archivos "
+                          "FROM envios WHERE usuario != '' GROUP BY usuario").fetchall()
+    return {f["usuario"]: {"consultas": f["consultas"], "archivos": f["archivos"]} for f in filas}
+
+
+def listar_envios(usuario: str, limite: int = 60) -> list[dict]:
+    """Envíos de un usuario, del más nuevo al más viejo (consultas y archivos subidos, de práctica y reales)."""
+    with _con() as c:
+        filas = c.execute("SELECT * FROM envios WHERE usuario = ? ORDER BY creado DESC, id DESC LIMIT ?",
+                          (usuario, limite)).fetchall()
+    return [_fila_envio(f) for f in filas]
+
+
+def leer_envio(eid: int, usuario: str) -> dict | None:
+    with _con() as c:
+        f = c.execute("SELECT * FROM envios WHERE id = ? AND usuario = ?", (eid, usuario)).fetchone()
+    if not f:
+        return None
+    extra = json.loads(f["extra"] or "{}")
+    return {**_fila_envio(f), "campos": extra.get("campos", []), "documento": extra.get("documento", ""),
+            "tabla": extra.get("tabla"), "texto": f["resultado"] or ""}
 
 
 # ───────────── Consulta para la gráfica ─────────────
@@ -144,16 +251,17 @@ def registrar(modo: str, area: str, tarea: dict, skill_id: str, nombre: str, ori
 _ORDEN = ["ok", "alto", "bajo", "error", "falla"]
 
 
-def consultar(modo: str, dias: int) -> dict:
+def consultar(modo: str, dias: int, usuario: str | None = None) -> dict:
+    """Valores diarios para la gráfica. Con `usuario`, solo lo que envió esa persona; sin él, toda la planta."""
     desde = (date.today() - timedelta(days=dias - 1)).isoformat()
+    de, args = ("AND usuario = ?", (modo, desde, usuario)) if usuario else ("", (modo, desde))
     with _con() as c:
-        filas = c.execute("SELECT * FROM puntos WHERE modo = ? AND fecha >= ? ORDER BY fecha, id",
-                          (modo, desde)).fetchall()
+        filas = c.execute(f"SELECT * FROM puntos WHERE modo = ? AND fecha >= ? {de} ORDER BY fecha, id", args).fetchall()
         envios = c.execute(
-            "SELECT tarea, COUNT(*) n, MAX(creado) ultimo FROM envios WHERE modo = ? AND substr(creado,1,10) >= ? "
-            "GROUP BY tarea ORDER BY n DESC", (modo, desde)).fetchall()
-        total = c.execute("SELECT COUNT(*) FROM envios WHERE modo = ? AND substr(creado,1,10) >= ?",
-                          (modo, desde)).fetchone()[0]
+            f"SELECT tarea, COUNT(*) n, MAX(creado) ultimo FROM envios WHERE modo = ? AND substr(creado,1,10) >= ? {de} "
+            "GROUP BY tarea ORDER BY n DESC", args).fetchall()
+        total = c.execute(f"SELECT COUNT(*) FROM envios WHERE modo = ? AND substr(creado,1,10) >= ? {de}",
+                          args).fetchone()[0]
 
     # Agrupar por serie y día: el valor diario es el promedio de lo registrado ese día;
     # el estado del día es el peor estado registrado.

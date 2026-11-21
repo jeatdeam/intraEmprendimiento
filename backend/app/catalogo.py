@@ -17,9 +17,13 @@ SKILLS: dict[str, dict] = {
         "pasos": ["Lee los datos que escribiste", "Ordena la información por secciones",
                   "Usa un lenguaje formal y claro", "Agrega fecha, título y cierre"],
         "prompt": (
-            "Redacta un documento formal y profesional. Estructura: título en mayúsculas, "
-            "datos generales (fecha, área, campos clave), secciones numeradas "
-            "(1. Descripción, 2. Acciones / próximos pasos y, si aplica, 3. Prioridad) y un cierre con firma."
+            "Redacta un documento formal, profesional y detallado (extensión de una página completa). "
+            "Estructura: título en mayúsculas, datos generales (fecha, área, campos clave, quién lo elabora) y entre "
+            "5 y 6 secciones numeradas según el tipo de documento: objetivo o resumen, detalle o descripción con los "
+            "datos en tabla cuando haya números, análisis o evaluación de lo informado, acciones y próximos pasos en "
+            "una tabla con las columnas N°, Acción, Responsable y Plazo, prioridad si aplica, y FIRMAS al final "
+            "('Elaborado por:', 'Revisado por:', 'Aprobado por:'). Desarrolla cada sección con frases completas; "
+            "usa solo los datos que se entregan y marca lo que falte como [completar]."
         ),
     },
     "puntos": {
@@ -89,9 +93,11 @@ for _fid, _f in FORMATOS.items():
             "Ya se hizo una revisión automática (incluida); confírmala leyendo el texto del documento y revisa también "
             "la calidad: que la información sea clara, completa y coherente. Estructura de tu respuesta: "
             "primera línea REVISIÓN DE FORMATO; luego las líneas 'Documento: …', 'Formato: nombre y código' y "
-            "'Resultado: ✅ ACEPTADO' o 'Resultado: ❌ NO ACEPTADO'; luego las secciones "
-            "1. LO QUE ESTÁ BIEN (viñetas), 2. LO QUE FALTA O HAY QUE CORREGIR (viñetas, cada una con cómo corregirlo) "
-            "y 3. RECOMENDACIÓN (una o dos frases)."
+            "'Resultado: ✅ ACEPTADO' o 'Resultado: ❌ NO ACEPTADO' y 'Cumplimiento: X de Y puntos (Z %)'; luego las secciones "
+            "1. RESUMEN DE LA REVISIÓN (tabla: Parte del formato, Cumple, Estado), 2. LO QUE ESTÁ BIEN (viñetas), "
+            "3. LO QUE FALTA O HAY QUE CORREGIR (viñetas, cada una con el motivo), "
+            "4. CÓMO CORREGIRLO PASO A PASO (pasos numerados; si está aceptado, QUÉ HACER AHORA) "
+            "y 5. RECOMENDACIÓN (una o dos frases)."
         ),
     }
 

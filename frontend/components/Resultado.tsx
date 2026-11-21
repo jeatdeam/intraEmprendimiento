@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Check, CircleCheck, Copy, Eye, Hourglass, House, Info, Printer, RefreshCw, Square, Volume2 } from "lucide-react";
+import { antesDespues } from "@/lib/api";
+import type { Comparacion, Skill, Tarea } from "@/lib/types";
+import AntesDespues from "./AntesDespues";
 import Documento from "./Documento";
-import type { Skill, Tarea } from "@/lib/types";
 import { Coach, Pasos } from "./Ayudas";
 import RobotTrabajando from "./RobotTrabajando";
 
@@ -38,13 +40,24 @@ interface Props {
   planta: string;
   origen: "ia" | "simulado";
   practica: boolean;
+  usuario: string;          // id del usuario
+  revision: string;         // id de la revisión del documento subido ("" si la tarea no lleva documento)
   onOtroSkill: () => void;
   onOtraTarea: () => void;
   onAviso: (msg: string) => void;
 }
 
-export default function Resultado({ tarea, skill, texto, planta, origen, practica, onOtroSkill, onOtraTarea, onAviso }: Props) {
+export default function Resultado({ tarea, skill, texto, planta, origen, practica, usuario, revision, onOtroSkill, onOtraTarea, onAviso }: Props) {
   const [hablando, setHablando] = useState(false);
+  const [comparacion, setComparacion] = useState<Comparacion | null>(null);
+
+  // Si se revisó un documento: sus dos hojas, el antes (con cada error marcado) y el después (corregido).
+  useEffect(() => {
+    if (!revision) return;
+    let vigente = true;
+    antesDespues(revision, practica ? "practica" : "real", usuario).then((c) => { if (vigente) setComparacion(c); }, () => {});
+    return () => { vigente = false; };
+  }, [revision, practica, usuario]);
 
   useEffect(() => () => { if (typeof window !== "undefined") window.speechSynthesis?.cancel(); }, []);
 
@@ -75,6 +88,23 @@ export default function Resultado({ tarea, skill, texto, planta, origen, practic
         decide. Prueba también otro skill para ver cómo cambia la respuesta.
       </Coach>
       <div className="result" tabIndex={0} aria-label="Resultado de la IA"><Documento texto={texto} planta={planta} /></div>
+      {comparacion && !comparacion.antes.aceptado && (
+        <section className="panel glass ad-panel" aria-labelledby="adTitulo">
+          <h2 id="adTitulo">Antes y después de {comparacion.archivo}</h2>
+          <p className="listos-lead">
+            A la izquierda, el documento como lo subiste, con lo que está mal o falta marcado en su lugar. A la derecha, cómo
+            queda corregido según el formato {comparacion.nombre} ({comparacion.codigo}).
+            {comparacion.pendientes > 0 && ` ${comparacion.pendientes === 1 ? "Queda 1 dato" : `Quedan ${comparacion.pendientes} datos`} por completar a mano, en amarillo.`}
+          </p>
+          <AntesDespues c={comparacion} />
+          <div className="row acciones">
+            <button className="btn sec" onClick={() => navigator.clipboard?.writeText(comparacion.despues.texto).then(
+              () => onAviso("Documento corregido copiado"), () => onAviso("No se pudo copiar"))}>
+              <Copy size={20} aria-hidden="true" /> Copiar el documento corregido
+            </button>
+          </div>
+        </section>
+      )}
       {origen === "simulado" && !practica && (
         <div className="aviso glass">
           <Info size={20} aria-hidden="true" /> La IA real todavía no está conectada en el servidor: este resultado es una simulación.
