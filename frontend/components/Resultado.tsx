@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Check, CircleCheck, Copy, Eye, Hourglass, House, Info, Printer, RefreshCw, Square, Volume2 } from "lucide-react";
+import { ArrowRightLeft, Check, CircleCheck, CircleX, Copy, Database, Eye, Hourglass, House, Info, Plus, Printer, RefreshCw, Square, TriangleAlert, Volume2 } from "lucide-react";
 import { antesDespues } from "@/lib/api";
 import type { Comparacion, Skill, Tarea } from "@/lib/types";
-import AntesDespues from "./AntesDespues";
+import SliderAntesDespues from "./SliderAntesDespues";
+import SliderFormato from "./SliderFormato";
 import Documento from "./Documento";
 import { Coach, Pasos } from "./Ayudas";
 import RobotTrabajando from "./RobotTrabajando";
@@ -33,8 +34,25 @@ export function Procesando({ skill, practica, pasoActual }: { skill: Skill; prac
   );
 }
 
+/** Hoja del "antes": los datos tal como se escribieron en el formulario, sin el skill. */
+function HojaEntrada({ tarea, entrada }: { tarea: Tarea; entrada: { label: string; valor: string }[] }) {
+  return (
+    <div className="hoja hoja-entrada">
+      <p className="hl hl-titulo"><span>{tarea.nombre.toUpperCase()}</span></p>
+      <p className="he-sub">Datos tal como se escribieron, sin ordenar ni dar formato</p>
+      {entrada.map((c) => (
+        <div key={c.label} className="he-campo">
+          <b>{c.label}</b>
+          <p>{c.valor}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface Props {
   tarea: Tarea;
+  entrada: { label: string; valor: string }[];   // lo que recibió el skill (el "antes")
   skill: Skill;
   texto: string;
   planta: string;
@@ -44,10 +62,11 @@ interface Props {
   revision: string;         // id de la revisión del documento subido ("" si la tarea no lleva documento)
   onOtroSkill: () => void;
   onOtraTarea: () => void;
+  onBaseDatos?: () => void;   // inspección: ver la fila recién guardada en la base de datos
   onAviso: (msg: string) => void;
 }
 
-export default function Resultado({ tarea, skill, texto, planta, origen, practica, usuario, revision, onOtroSkill, onOtraTarea, onAviso }: Props) {
+export default function Resultado({ tarea, entrada, skill, texto, planta, origen, practica, usuario, revision, onOtroSkill, onOtraTarea, onBaseDatos, onAviso }: Props) {
   const [hablando, setHablando] = useState(false);
   const [comparacion, setComparacion] = useState<Comparacion | null>(null);
 
@@ -87,27 +106,58 @@ export default function Resultado({ tarea, skill, texto, planta, origen, practic
         La IA es una gran ayuda, pero <b>puede equivocarse</b>. Lee el resultado antes de usarlo. Tú eres quien
         decide. Prueba también otro skill para ver cómo cambia la respuesta.
       </Coach>
-      <div className="result" tabIndex={0} aria-label="Resultado de la IA"><Documento texto={texto} planta={planta} /></div>
-      {comparacion && !comparacion.antes.aceptado && (
+      {/* Antes y después: los dos documentos en un slider para ver la diferencia */}
+      {revision ? (
+        comparacion && (
+          <section className="panel glass ad-panel" aria-labelledby="adTitulo">
+            <h2 id="adTitulo">Antes y después de {comparacion.archivo}</h2>
+            <p className="listos-lead">
+              A la izquierda, el documento como lo subiste, con lo que está mal o falta marcado en su lugar. A la derecha, cómo
+              queda corregido según el formato {comparacion.nombre} ({comparacion.codigo}).
+              {comparacion.pendientes > 0 && ` ${comparacion.pendientes === 1 ? "Queda 1 dato" : `Quedan ${comparacion.pendientes} datos`} por completar a mano, en amarillo.`}
+            </p>
+            <ul className="ad-leyenda" aria-label="Qué significa cada color">
+              <li className="m-error"><CircleX size={14} aria-hidden="true" /> Error o falta algo</li>
+              <li className="m-aviso"><TriangleAlert size={14} aria-hidden="true" /> Fuera de orden o por completar</li>
+              <li className="m-nuevo"><Plus size={14} aria-hidden="true" /> Agregado o corregido</li>
+            </ul>
+            <SliderFormato grupos={[comparacion]} />
+            <div className="row acciones">
+              <button className="btn sec" onClick={() => navigator.clipboard?.writeText(comparacion.despues.texto).then(
+                () => onAviso("Documento corregido copiado"), () => onAviso("No se pudo copiar"))}>
+                <Copy size={20} aria-hidden="true" /> Copiar el documento corregido
+              </button>
+            </div>
+          </section>
+        )
+      ) : entrada.length > 0 && (
         <section className="panel glass ad-panel" aria-labelledby="adTitulo">
-          <h2 id="adTitulo">Antes y después de {comparacion.archivo}</h2>
+          <h2 id="adTitulo"><ArrowRightLeft size={22} aria-hidden="true" /> Antes y después</h2>
           <p className="listos-lead">
-            A la izquierda, el documento como lo subiste, con lo que está mal o falta marcado en su lugar. A la derecha, cómo
-            queda corregido según el formato {comparacion.nombre} ({comparacion.codigo}).
-            {comparacion.pendientes > 0 && ` ${comparacion.pendientes === 1 ? "Queda 1 dato" : `Quedan ${comparacion.pendientes} datos`} por completar a mano, en amarillo.`}
+            A la izquierda, lo que escribiste en el formulario, tal cual. A la derecha, el documento que armó el skill
+            <b> {skill.nombre}</b> con esos mismos datos. Arrastra la línea para ver la diferencia.
           </p>
-          <AntesDespues c={comparacion} />
-          <div className="row acciones">
-            <button className="btn sec" onClick={() => navigator.clipboard?.writeText(comparacion.despues.texto).then(
-              () => onAviso("Documento corregido copiado"), () => onAviso("No se pudo copiar"))}>
-              <Copy size={20} aria-hidden="true" /> Copiar el documento corregido
-            </button>
-          </div>
+          <SliderAntesDespues izq="Lo que escribiste" der="Con skill" izqCorta="Escrito" derCorta="Con skill"
+            grupos={[{
+              clave: "resultado", titulo: tarea.nombre, sub: `Skill ${skill.nombre}`,
+              izq: <HojaEntrada tarea={tarea} entrada={entrada} />,
+              der: <div className="result baf-result"><Documento texto={texto} planta={planta} /></div>,
+              selloIzq: <span className="baf-sello no">Sin skill</span>,
+              selloDer: <span className="baf-sello si"><CircleCheck size={13} aria-hidden="true" /> {skill.nombre}</span>,
+            }]} />
         </section>
       )}
+      <div className="result" tabIndex={0} aria-label="Resultado de la IA"><Documento texto={texto} planta={planta} /></div>
       {origen === "simulado" && !practica && (
         <div className="aviso glass">
           <Info size={20} aria-hidden="true" /> La IA real todavía no está conectada en el servidor: este resultado es una simulación.
+        </div>
+      )}
+      {onBaseDatos && (
+        <div className="aviso glass bd-aviso">
+          <CircleCheck size={20} aria-hidden="true" />
+          <span>La inspección quedó guardada en la <b>base de datos de inspecciones</b> con sus mediciones.</span>
+          <button className="btn pri" onClick={onBaseDatos}><Database size={20} aria-hidden="true" /> Ver en la base de datos</button>
         </div>
       )}
       <div className="row acciones">

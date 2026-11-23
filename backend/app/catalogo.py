@@ -101,6 +101,50 @@ for _fid, _f in FORMATOS.items():
         ),
     }
 
+# Inspección de ejemplo para cada equipo (demo): al elegir el equipo se cargan sus mediciones y observaciones.
+_INSP = {
+    "AG-01": {"motivo": "Seguimiento de vibración en el aspa 2 (inspección quincenal)",
+              "voltaje": "691", "corriente": "1920", "temperatura": "63", "vibracion": "4,8",
+              "falla": "Vibración excesiva", "gravedad": "Leve",
+              "observaciones": "Vibración en el rotor de 4,8 mm/s (lo normal es hasta 4,5). Sube a 5,1 mm/s cuando el viento "
+                               "pasa de 11 m/s. El aspa 2 tiene una marca de impacto de unos 3 cm cerca de la punta, sin "
+                               "grietas visibles. Rodamiento principal sin ruido y con grasa limpia. Freno y sistema de "
+                               "orientación funcionando bien. Se recomienda balancear el rotor en la próxima parada "
+                               "programada y revisar el aspa 2 con dron."},
+    "AG-07": {"motivo": "Inspección mensual programada y seguimiento de fuga de aceite",
+              "voltaje": "702", "corriente": "1840", "temperatura": "81", "vibracion": "5,2",
+              "falla": "Fuga de aceite", "gravedad": "Moderada",
+              "observaciones": "La semana pasada se notó una pequeña fuga de aceite en la góndola. Hoy la mancha mide unos "
+                               "40 cm y está junto al sello del eje principal. El nivel de aceite de la multiplicadora está "
+                               "en el mínimo y la temperatura del aceite llegó a 81 °C (normal hasta 75). Se escucha un "
+                               "zumbido al girar el rotor y la vibración subió a 5,2 mm/s. Se limpió la zona, se colocó "
+                               "paño absorbente y se pidió a bodega el sello de repuesto (código SE-450). Se sugiere "
+                               "limitar la potencia al 70 % hasta el cambio del sello."},
+    "INV-03": {"motivo": "Revisión por alarma E-214 de sobretemperatura",
+               "voltaje": "398", "corriente": "1460", "temperatura": "66", "vibracion": "1,1",
+               "falla": "Sobretemperatura", "gravedad": "Moderada",
+               "observaciones": "Gabinete a 66 °C (normal hasta 60 °C). El ventilador derecho no gira y el filtro de aire "
+                                "está tapado de polvo. La producción de la fila 12 bajó de 1,4 a 0,6 MW desde las 09:40. "
+                                "Voltaje y corriente AC dentro de rango. Conexiones DC sin puntos calientes en la cámara "
+                                "térmica. Se limpió el filtro y la temperatura bajó a 61 °C. Falta cambiar el ventilador "
+                                "(repuesto VF-220) con permiso de trabajo eléctrico."},
+    "INV-05": {"motivo": "Ronda diaria de inspección",
+               "voltaje": "404", "corriente": "1280", "temperatura": "47", "vibracion": "0,6",
+               "falla": "Error de comunicación", "gravedad": "Leve",
+               "observaciones": "El inversor opera normal: voltaje, corriente y temperatura dentro de rango. El SCADA dejó "
+                                "de recibir datos durante 15 minutos a las 12:20; la luz de la tarjeta de comunicación "
+                                "parpadeaba en rojo. Se reapretó el cable de red y se reinició la tarjeta; volvió a "
+                                "comunicar. Filtros limpios, sin ruidos ni olores. Se dejará en observación 48 horas."},
+    "TR-01": {"motivo": "Inspección semanal de la subestación",
+              "voltaje": "402", "corriente": "2380", "temperatura": "79", "vibracion": "1,3",
+              "falla": "Sin falla", "gravedad": "Ninguna",
+              "observaciones": "Temperatura del aceite 79 °C con 31 °C de ambiente, dentro de rango; los 4 ventiladores "
+                               "funcionando. Nivel de aceite en el punto medio del indicador. Silicagel color naranja "
+                               "(en buen estado). Sin fugas ni manchas en la base. Zumbido normal. Aisladores limpios "
+                               "y sin fisuras. Cerco y puerta de la subestación con candado."},
+}
+EJEMPLOS_INSPECCION = {opcion_equipo(e): {"equipo": opcion_equipo(e), **_INSP[e["id"]]} for e in EQUIPOS}
+
 TAREAS: dict[str, list[dict]] = {
     "planta": [
         {"id": "formato", "ico": "formato", "nombre": "Revisar formato de un documento",
@@ -124,9 +168,18 @@ TAREAS: dict[str, list[dict]] = {
               "hint": "Escribe como si se lo contaras a un compañero."},
          ],
          "ejemplo": {"turno": "Mañana (06:00 - 14:00)", "operador": "Juan Pérez (ficticio)", "generacion": "412",
-                     "novedades": "Turno normal. El aerogenerador 7 se detuvo 40 minutos por viento alto y volvió solo. "
-                                  "Se limpió el panel del inversor 3. Llegó el camión de repuestos a las 11. "
-                                  "Falta revisar la cerca del sector norte."}},
+                     "novedades": "Recibí el turno a las 06:00 de Luis Rojas sin pendientes graves. Todos los equipos en servicio.\n\n"
+                                  "06:45 - Ronda por el Parque Eólico Norte: AG-01 y AG-07 operando normal, viento de 9 m/s.\n"
+                                  "08:10 - El aerogenerador AG-07 se detuvo 40 minutos por viento alto (ráfagas de 24 m/s) "
+                                  "y volvió a arrancar solo a las 08:50. Sin alarmas después del arranque.\n"
+                                  "09:30 - Se limpió el filtro de ventilación del inversor INV-03; la temperatura del gabinete "
+                                  "bajó de 58 a 49 °C.\n"
+                                  "11:00 - Llegó el camión de repuestos con el sello del eje principal y 2 filtros. "
+                                  "Se guardó todo en bodega, guía N° 4471.\n"
+                                  "12:20 - El SCADA perdió comunicación con INV-05 por 15 minutos; se recuperó sola.\n\n"
+                                  "Seguridad: sin incidentes. Se hizo la charla de 5 minutos sobre trabajo en altura (6 personas).\n"
+                                  "Pendiente para el turno tarde: revisar la cerca del sector norte (hay un poste suelto) "
+                                  "y vigilar la comunicación de INV-05."}},
         {"id": "falla", "ico": "falla", "nombre": "Reportar una falla",
          "desc": "Describe el problema y la IA arma el aviso de mantenimiento.",
          "skills": ["formal", "checklist", "simple"],
@@ -140,8 +193,14 @@ TAREAS: dict[str, list[dict]] = {
          ],
          "ejemplo": {"equipo": "Inversor solar INV-03 (ficticio)", "ubicacion": "Sector B, fila 12",
                      "urgencia": "Alta - hoy mismo",
-                     "descripcion": "Hace un ruido fuerte, la pantalla muestra error E-214 y está más caliente "
-                                    "de lo normal. Bajó la producción de esa fila."}},
+                     "descripcion": "Durante la ronda de las 10:15 escuché un zumbido fuerte que sale del gabinete del inversor. "
+                                    "La pantalla muestra el error E-214 (sobretemperatura de módulo IGBT) y el gabinete está "
+                                    "muy caliente al tacto: el termómetro marca 68 °C (lo normal es hasta 60 °C).\n\n"
+                                    "La producción de la fila 12 bajó de 1,4 MW a 0,6 MW desde las 09:40 según el SCADA. "
+                                    "El ventilador de la derecha no gira y el filtro de aire está tapado de polvo.\n\n"
+                                    "Lo que hice: avisé al supervisor por radio, puse un cono y cinta de peligro frente al "
+                                    "gabinete y NO lo abrí porque está energizado. Hace falta un técnico eléctrico con "
+                                    "permiso de trabajo y el repuesto del ventilador (código VF-220)."}},
         {"id": "inspeccion", "ico": "inspeccion", "nombre": "Inspección de equipo",
          "desc": "Registra las mediciones y fallas del equipo; la IA te arma la revisión.",
          "skills": ["checklist", "puntos", "formal"],
@@ -160,25 +219,26 @@ TAREAS: dict[str, list[dict]] = {
              {"id": "observaciones", "label": "Detalle de la falla y observaciones", "tipo": "area", "opcional": True,
               "hint": "Dónde está, cómo se ve, desde cuándo, qué se hizo."},
          ],
-         "ejemplo": {"equipo": opcion_equipo(EQUIPOS[1]), "motivo": "Inspección mensual programada",
-                     "voltaje": "702", "corriente": "1840", "temperatura": "81", "vibracion": "5,2",
-                     "falla": "Fuga de aceite", "gravedad": "Moderada",
-                     "observaciones": "La última vez se notó una pequeña fuga de aceite en la góndola. Hoy la mancha "
-                                      "es más grande y está cerca del sello del eje principal. El nivel de aceite de la "
-                                      "multiplicadora está en el mínimo y se escucha un zumbido al girar el rotor. "
-                                      "Se limpió la zona y se colocó un paño absorbente."}},
+         "ejemplo": EJEMPLOS_INSPECCION[opcion_equipo(EQUIPOS[1])],
+         # Al cambiar de equipo en el formulario se cargan sus propias mediciones de ejemplo (es una demo).
+         "ejemplos_equipo": EJEMPLOS_INSPECCION},
         {"id": "procedimiento", "ico": "procedimiento", "nombre": "Preguntar un procedimiento",
          "desc": "Pregunta cómo se hace algo y la IA te lo explica.",
          "skills": ["simple", "checklist"],
          "campos": [{"id": "pregunta", "label": "¿Qué quieres saber?", "tipo": "area",
                      "hint": "Ejemplo: ¿Cómo hago el bloqueo de un tablero eléctrico?"}],
-         "ejemplo": {"pregunta": "¿Cómo hago el bloqueo y etiquetado (LOTO) de un tablero eléctrico antes de trabajar en él?"}},
+         "ejemplo": {"pregunta": "Mañana tengo que cambiar un interruptor dentro del tablero de baja tensión TB-04 del "
+                                 "Parque Solar Sur, que alimenta las filas 10 a 14. Nunca hice el bloqueo y etiquetado "
+                                 "(LOTO) solo.\n\n¿Cuáles son los pasos en orden para bloquear el tablero, qué candados y "
+                                 "tarjetas uso, cómo compruebo que no queda tensión antes de tocar nada y qué hago al "
+                                 "terminar para devolver el tablero a servicio? Trabajaré con un compañero."}},
         {"id": "lecturas", "ico": "lecturas", "nombre": "Revisar lecturas de producción",
          "desc": "Pega las lecturas y la IA te dice si algo anda mal.",
          "skills": ["analista", "puntos"],
          "campos": [{"id": "lecturas", "label": "Lecturas (una por línea)", "tipo": "area",
                      "hint": "Formato: hora: valor en MW"}],
-         "ejemplo": {"lecturas": "08:00: 48\n09:00: 52\n10:00: 55\n11:00: 21\n12:00: 57\n13:00: 54\n14:00: 50"}},
+         "ejemplo": {"lecturas": "06:00: 12\n07:00: 26\n08:00: 48\n09:00: 52\n10:00: 55\n11:00: 21\n12:00: 57\n"
+                                 "13:00: 54\n14:00: 50\n15:00: 47\n16:00: 41\n17:00: 33\n18:00: 19"}},
     ],
     "oficina": [
         {"id": "formato", "ico": "formato", "nombre": "Revisar formato de un documento",
@@ -210,8 +270,13 @@ TAREAS: dict[str, list[dict]] = {
               "hint": "No te preocupes por la redacción, escribe las ideas."},
          ],
          "ejemplo": {"para": "Proveedor Solartec S.A. (ficticio)", "tema": "Retraso en entrega de paneles",
-                     "puntos": "los paneles debían llegar el lunes y no llegaron. necesitamos fecha nueva. "
-                               "si no llegan esta semana se atrasa el mantenimiento del sector C"}},
+                     "puntos": "orden de compra OC-2026-118 por 120 paneles de 550 W. debían llegar el lunes 16 y no llegaron, "
+                               "nadie nos avisó. ya llamamos 2 veces y no contestan.\n"
+                               "necesitamos fecha nueva de entrega por escrito y el número de guía del transporte.\n"
+                               "si no llegan antes del viernes se atrasa el mantenimiento del sector C y perdemos unos "
+                               "35 MWh por semana.\n"
+                               "recordarles que el contrato tiene multa por atraso de 0,5 % por día.\n"
+                               "contacto nuestro: área de compras, anexo 214"}},
         {"id": "resumen", "ico": "resumen", "nombre": "Resumir un documento",
          "desc": "Pega un texto largo y la IA te da lo importante.",
          "skills": ["puntos", "simple"],
@@ -220,7 +285,17 @@ TAREAS: dict[str, list[dict]] = {
                               "su pronóstico de generación con 24 horas de anticipación. Las desviaciones mayores al 10% "
                               "podrán ser penalizadas. La medida entra en vigencia el próximo trimestre. Se recomienda que "
                               "cada planta designe un responsable del pronóstico y revise sus sistemas de medición. Además "
-                              "se exigirá un reporte mensual de disponibilidad de equipos."}},
+                              "se exigirá un reporte mensual de disponibilidad de equipos.\n\n"
+                              "El pronóstico deberá enviarse antes de las 10:00 de cada día a través de la plataforma del "
+                              "operador del sistema, en bloques de una hora. Las plantas con más de 50 MW instalados deberán "
+                              "contar además con una estación meteorológica propia, calibrada al menos una vez al año. "
+                              "Durante los primeros tres meses de vigencia habrá un periodo de marcha blanca sin multas, "
+                              "en el que solo se informarán las desviaciones.\n\n"
+                              "El reporte mensual de disponibilidad deberá indicar, por cada equipo, las horas en servicio, "
+                              "las horas en mantenimiento programado y las horas de falla, con la causa de cada parada. "
+                              "Las multas por desviación se calcularán sobre la energía no entregada y se descontarán de "
+                              "los pagos del mes siguiente. Se realizará una capacitación virtual para los responsables "
+                              "el día 3 del próximo mes."}},
         {"id": "acta", "ico": "acta", "nombre": "Acta de reunión",
          "desc": "Escribe tus notas y la IA arma el acta ordenada.",
          "skills": ["formal", "puntos"],
@@ -229,9 +304,16 @@ TAREAS: dict[str, list[dict]] = {
              {"id": "notas", "label": "Notas de la reunión", "tipo": "area"},
          ],
          "ejemplo": {"asistentes": "Ana Gómez, Luis Rojas, Marta Díaz (ficticios)",
-                     "notas": "se habló del presupuesto 2027. Luis presenta compra de 2 drones para inspección. "
-                              "Marta pide capacitación en IA para el personal. se acuerda reunión con RRHH el viernes. "
-                              "Ana revisa costos de drones."}},
+                     "notas": "reunión lunes 9:00 en sala de operaciones, terminó 10:15. dirige Ana.\n"
+                              "1) presupuesto 2027: se pidió 8 % más para mantenimiento por el cambio de sellos en los "
+                              "aerogeneradores. Ana lo presenta a gerencia el 30.\n"
+                              "2) Luis presenta compra de 2 drones con cámara térmica para inspeccionar paneles y aspas. "
+                              "costo aprox 18 mil dólares. ahorrarían 3 días de inspección al mes. Ana revisa costos y "
+                              "pide 3 cotizaciones.\n"
+                              "3) Marta pide capacitación en IA para el personal de planta y oficina, unas 25 personas. "
+                              "se acuerda reunión con RRHH el viernes para ver fechas.\n"
+                              "4) seguridad: recordar que el simulacro de evacuación es el 5 de diciembre.\n"
+                              "pendiente de la reunión anterior: el informe de disponibilidad de octubre ya se envió (Luis)."}},
         {"id": "informe", "ico": "informe", "nombre": "Informe de generación",
          "desc": "Pega los datos del mes y la IA arma el informe.",
          "skills": ["analista", "formal"],
@@ -240,7 +322,12 @@ TAREAS: dict[str, list[dict]] = {
              {"id": "datos", "label": "Datos por instalación (MWh)", "tipo": "area", "hint": "Formato: nombre: valor"},
          ],
          "ejemplo": {"periodo": "Octubre 2026",
-                     "datos": "Parque Eólico Norte: 18400\nParque Solar Sur: 12950\nParque Solar Este: 9800\nEólico Cerro Alto: 4100"}},
+                     "datos": "Parque Eólico Norte: 18400 (meta 17500; AG-07 detenido 2 días por cambio de sello)\n"
+                              "Parque Solar Sur: 12950 (meta 13200; INV-03 con falla de ventilador 3 días)\n"
+                              "Parque Solar Este: 9800 (meta 9500)\n"
+                              "Eólico Cerro Alto: 4100 (meta 5200; mes con poco viento)\n"
+                              "Consumo propio de la planta: 310\n"
+                              "Mes anterior (septiembre) total: 43900"}},
         {"id": "compra", "ico": "compra", "nombre": "Solicitud de compra",
          "desc": "Indica qué necesitas y la IA redacta la solicitud.",
          "skills": ["formal", "correo"],
@@ -250,7 +337,14 @@ TAREAS: dict[str, list[dict]] = {
              {"id": "motivo", "label": "¿Para qué se necesita?", "tipo": "area"},
          ],
          "ejemplo": {"articulo": "Guantes dieléctricos clase 2", "cantidad": "20 pares",
-                     "motivo": "Los actuales vencen su certificación en diciembre y son obligatorios para trabajos en media tensión."}},
+                     "motivo": "Los 20 pares que usa el equipo de mantenimiento eléctrico vencen su certificación el 15 de "
+                               "diciembre y son obligatorios para trabajos en media tensión (hasta 17 kV) según el "
+                               "reglamento interno RS-04. Sin ellos no se pueden hacer las maniobras en la subestación "
+                               "ni en los tableros de los parques solares.\n"
+                               "Tallas: 8 pares talla 9, 8 pares talla 10 y 4 pares talla 11. Deben venir con certificado "
+                               "de ensayo dieléctrico vigente y su bolsa de protección.\n"
+                               "Proveedor sugerido: Seguridad Industrial Andina (cotización COT-5521, aprox. 85 dólares el par). "
+                               "Centro de costo: Mantenimiento Eléctrico MT-02. Entrega a más tardar el 10 de diciembre."}},
     ],
 }
 

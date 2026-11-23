@@ -7,6 +7,7 @@ import { obtenerListosDatos, revisarArchivo, revisarEjemplo, revisarEnvioDatos, 
 import type { ArchivoEjemplo, Envio, Modo, Problema, Revision } from "@/lib/types";
 import { Apps } from "./Apps";
 import FilaArchivo from "./FilaArchivo";
+import VisorEnvio from "./VisorEnvio";
 import { EstadoArchivo, fechaHora } from "./MiHistorial";
 
 const ETIQUETA: Record<Problema["tipo"], { txt: string; Ico: typeof CircleAlert }> = {
@@ -40,6 +41,7 @@ export default function CampoArchivo({ id, modo, valor, onCambio, usuario, envia
   const [arrastrando, setArrastrando] = useState(false);
   const [ejemplos, setEjemplos] = useState<ArchivoEjemplo[]>([]);
   const [elegido, setElegido] = useState("");          // clave del archivo de la lista que está cargado
+  const [visor, setVisor] = useState<number | null>(null);   // archivo enviado abierto en el panel de la derecha
   const practica = modo === "practica";
 
   async function revisar(p: Promise<Revision>, clave = "") {
@@ -61,9 +63,9 @@ export default function CampoArchivo({ id, modo, valor, onCambio, usuario, envia
     }
   }
 
-  // En práctica se carga solo el archivo ficticio.
+  // Es una demo: siempre se carga solo el archivo ficticio (en práctica y en trabajo real).
   useEffect(() => {
-    if (practica && !cache.has(valor)) revisar(revisarEjemplo());
+    if (!cache.has(valor)) revisar(revisarEjemplo(modo));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -178,7 +180,7 @@ export default function CampoArchivo({ id, modo, valor, onCambio, usuario, envia
               <ul className="elegibles-lista">
                 {mios.map((e) => (
                   <FilaArchivo key={e.id} clave={`envio:${e.id}`} archivo={e.archivo ?? "archivo"} activo={elegido === `envio:${e.id}`}
-                    onElegir={() => cargar(`envio:${e.id}`)}>
+                    onElegir={() => setVisor(e.id)}>
                     <small>{fechaHora(e.creado)}{e.modo === "practica" && <span className="hist-modo">Práctica</span>}</small>
                     <EstadoArchivo e={e} />
                   </FilaArchivo>
@@ -199,8 +201,11 @@ export default function CampoArchivo({ id, modo, valor, onCambio, usuario, envia
               ))}
             </ul>
           </section>
-          <p className="hint">Arrastra cualquiera al recuadro de arriba, o tócalo, para cargarlo.</p>
+          <p className="hint">Toca uno de tus archivos enviados para verlo a la derecha con el motivo por el que fue aceptado o no. Los de ejemplo se cargan al tocarlos o arrastrarlos al recuadro.</p>
         </div>
+      )}
+      {visor !== null && usuario && (
+        <VisorEnvio usuario={usuario} envio={visor} onUsar={() => cargar(`envio:${visor}`)} onCerrar={() => setVisor(null)} />
       )}
     </div>
   );

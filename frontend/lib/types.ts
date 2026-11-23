@@ -1,6 +1,6 @@
 export type Area = "planta" | "oficina";
 export type Modo = "practica" | "real";
-export type Pantalla = "inicio" | "tareas" | "skill" | "datos" | "procesando" | "resultado" | "grafica" | "historial" | "envio";
+export type Pantalla = "inicio" | "tareas" | "skill" | "datos" | "procesando" | "resultado" | "grafica" | "historial" | "envio" | "inspecciones";
 
 export type Perfil = "planta" | "ejecutivo" | "novato";
 
@@ -73,6 +73,7 @@ export interface Tarea {
   skills: string[];
   campos: Campo[];
   ejemplo: Record<string, string>;
+  ejemplos_equipo?: Record<string, Record<string, string>>;   // inspección: datos de ejemplo de cada equipo
   apps?: string[];
 }
 
@@ -86,6 +87,8 @@ export interface Catalogo {
 export interface Resultado {
   texto: string;
   origen: "ia" | "simulado";
+  envio_id?: number | null;   // id del envío guardado en la base de datos
+  entrada?: { label: string; valor: string }[];   // lo que recibió el skill (el "antes" del resultado)
 }
 
 export type EstadoDato = "ok" | "bajo" | "alto" | "error" | "falla";
@@ -205,3 +208,71 @@ export interface Comparacion {
   cambios: number;
   pendientes: number;
 }
+
+export interface MedidaInspeccion {
+  valor: number;
+  unidad: string;
+  min: number;
+  max: number;
+  estado: "ok" | "bajo" | "alto";
+}
+
+/** Una fila de la base de datos de inspecciones. */
+export interface Inspeccion {
+  id: number;
+  creado: string;
+  inspector: string;
+  usuario: string;
+  skill_id: string;
+  ejemplo: boolean;
+  equipo: { id: string; nombre: string; tipo: string; ubicacion: string };
+  medidas: Partial<Record<"Voltaje" | "Corriente" | "Temperatura" | "Vibración", MedidaInspeccion>>;
+  falla: string | null;
+  gravedad: string;
+  detalle: string;
+  estado: "ok" | "alerta" | "falla" | "critico";
+}
+
+/** Un reporte anterior de una tarea (panel al costado del formulario). */
+export interface ReporteAnterior {
+  id: number;
+  creado: string;
+  dia: string;
+  nombre: string;
+  skill_id: string;
+  archivo: string | null;
+  resumen: string;
+  estado: EstadoDato;
+  ejemplo: boolean;
+  campos: { label: string; valor: string }[];
+}
+
+export interface SerieReportes {
+  id: string;
+  nombre: string;
+  unidad: string;
+  min: number | null;
+  max: number | null;
+  dias: Record<string, { valor: number; estado: EstadoDato }>;
+}
+
+export interface ReportesTarea {
+  fechas: string[];
+  envios: ReporteAnterior[];
+  conteo: Record<string, number>;
+  dias_mal: string[];
+  series: SerieReportes[];
+}
+
+/** Un archivo ya enviado y por qué fue aceptado o no. */
+export type MotivoEnvio = {
+  archivo: string | null;
+  creado: string;
+  aceptado: boolean;
+} & (
+  | { tipo: "documento"; cumple: number; total: number; formato: string; codigo: string; documento: string;
+      checks: RevisionFormato["checks"]; observaciones: string[] }
+  | { tipo: "archivo"; filas: number; estructura: string[]; tabla: string[][];
+      resumen: { errores: number; bajos: number; altos: number; fallas: number; validas: number; equipos: number; desde: string; hasta: string };
+      problemas: { fila: number; columna: string; valor: string; tipo: string; mensaje: string }[] }
+);

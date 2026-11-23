@@ -1,12 +1,12 @@
-import { ArrowLeft, Brain, ChartLine, Check, Hand, History, Star } from "lucide-react";
+import { ArrowLeft, Brain, ChartLine, Check, Database, Hand, History, MessageSquare, Star } from "lucide-react";
 import type { Skill, Tarea } from "@/lib/types";
 import { Coach, Pasos } from "./Ayudas";
 import { IconoBurbuja } from "./Icono";
 import { Apps } from "./Apps";
 
-export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onGrafica, onHistorial }: {
+export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onGrafica, onHistorial, onChat, onInspecciones }: {
   nombre: string; tareas: Tarea[]; practica: boolean; hechas: string[]; onElegir: (t: Tarea) => void; onGrafica: () => void;
-  onHistorial: () => void;
+  onHistorial: () => void; onChat: () => void; onInspecciones?: () => void;
 }) {
   const n = tareas.filter((t) => hechas.includes(t.id)).length;
   return (
@@ -28,6 +28,15 @@ export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onG
         </div>
       )}
       <div className="grid">
+        {/* Chat libre con la IA: para preguntar cualquier cosa, sin elegir tarea ni skill */}
+        <button className="card card-ia" onClick={onChat}>
+          <span className="card-top">
+            <span className="burbuja"><MessageSquare size={22} strokeWidth={2} aria-hidden="true" /></span>
+          </span>
+          <span className="t">Usar IA</span>
+          <span className="d">Conversa con la IA como en un chat: escribe tus preguntas o consultas y te responde al momento.</span>
+          <span className="tag">Probar ahora</span>
+        </button>
         {tareas.map((t) => (
           <button key={t.id} className="card" onClick={() => onElegir(t)}>
             {/* Si la tarea trabaja con programas (Word, Excel…), arriba van solo sus íconos */}
@@ -47,6 +56,11 @@ export function SelectorTareas({ nombre, tareas, practica, hechas, onElegir, onG
         <button className="btn sec" onClick={onGrafica}>
           <ChartLine size={22} aria-hidden="true" /> Ver mis gráficas
         </button>
+        {onInspecciones && (
+          <button className="btn sec" onClick={onInspecciones}>
+            <Database size={22} aria-hidden="true" /> Base de datos de inspecciones
+          </button>
+        )}
       </div>
     </>
   );

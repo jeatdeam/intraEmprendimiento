@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChartLine, ChevronDown, ChevronUp, CircleAlert, CircleCheck, CircleX, LoaderCircle } from "lucide-react";
 import { obtenerHistorialEquipo } from "@/lib/api";
-import type { HistorialEquipo as Hist, Modo } from "@/lib/types";
+import type { EstadoDato, HistorialEquipo as Hist, Modo } from "@/lib/types";
 import { Marca } from "./Grafica";
 
 const corta = (iso: string) => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
@@ -11,8 +11,9 @@ const num = (v: number) => v.toLocaleString("es", { maximumFractionDigits: 1 });
 const larga = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("es", { weekday: "long", day: "numeric", month: "long" });
 
 /** Mini gráfica de una variable: banda del rango normal, línea, marcas por estado y días malos sombreados. */
-function Mini({ v, fechas, malos, sel, onSel, ancho }: {
-  v: Hist["variables"][number]; fechas: string[]; malos: Set<string>; sel: number; onSel: (i: number) => void; ancho: number;
+export function Mini({ v, fechas, malos, sel, onSel, ancho }: {
+  v: { min: number | null; max: number | null; dias: Record<string, { valor: number; estado: EstadoDato }> };
+  fechas: string[]; malos: Set<string>; sel: number; onSel: (i: number) => void; ancho: number;
 }) {
   const H = 64, M = { l: 6, r: 6, t: 8, b: 8 };
   const pw = ancho - M.l - M.r, ph = H - M.t - M.b;

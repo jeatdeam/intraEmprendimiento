@@ -333,3 +333,122 @@ def consultar_equipo(modo: str, equipo_id: str, dias: int = 7) -> dict | None:
     return {"equipo": eq, "fechas": fechas, "variables": lista,
             "eventos": eventos,
             "dias_mal": sorted(eventos.keys())}
+
+
+# ───────────── Base de datos de inspecciones ─────────────
+
+_VARS_INSP = ("Voltaje", "Corriente", "Temperatura", "Vibración")
+
+
+def listar_inspecciones(modo: str, equipo: str = "", limite: int = 300) -> list[dict]:
+    """Una fila por inspección guardada: equipo, inspector, mediciones con su estado y la falla encontrada.
+
+    Sale de las tablas `envios` (quién y cuándo) y `puntos` (las mediciones de cada envío).
+    Si una inspección fue reemplazada por otra del mismo día (mismo equipo y persona), ya no tiene mediciones y no se lista.
+    """
+    filtro, args = ("AND p.serie LIKE ?", [f"{equipo.upper()} · %"]) if equipo else ("", [])
+    with _con() as c:
+        filas = c.execute(
+            "SELECT e.id, e.creado, e.nombre, e.usuario, e.skill_id, e.origen, p.serie, p.unidad, p.valor, p.min, p.max, "
+            "p.estado, p.detalle FROM envios e JOIN puntos p ON p.envio_id = e.id "
+            f"WHERE e.modo = ? AND e.tarea_id = 'inspeccion' AND p.serie LIKE '% · %' {filtro} "
+            "ORDER BY e.creado DESC, e.id DESC, p.id", [modo, *args]).fetchall()
+
+    equipos = {e["id"]: e for e in EQUIPOS}
+    out: dict[int, dict] = {}
+    for f in filas:
+        eq_id, var = f["serie"].split(" · ", 1)
+        if eq_id not in equipos:
+            continue
+        r = out.get(f["id"])
+        if r is None:
+            if len(out) >= limite:
+                break
+            eq = equipos[eq_id]
+            r = out[f["id"]] = {
+                "id": f["id"], "creado": f["creado"], "inspector": (f["nombre"] or "").replace(" (Datos de ejemplo)", ""),
+                "usuario": f["usuario"] or "", "skill_id": f["skill_id"], "ejemplo": f["origen"] == "semilla",
+                "equipo": {"id": eq["id"], "nombre": eq["nombre"], "tipo": eq["tipo"], "ubicacion": eq["ubicacion"]},
+                "medidas": {}, "falla": None, "gravedad": "Ninguna", "detalle": "", "estado": "ok"}
+        if var == "Fallas":
+            txt = (json.loads(f["detalle"] or "[]") or [""])[0]
+            m = re.match(r"(.+?) · gravedad (\w+)(?: — (.*))?$", txt, re.S)
+            if m:
+                r["falla"], r["gravedad"], r["detalle"] = m.group(1), m.group(2), (m.group(3) or "")
+            else:
+                r["falla"] = txt
+        elif var in _VARS_INSP:
+            r["medidas"][var] = {"valor": f["valor"], "unidad": f["unidad"], "min": f["min"], "max": f["max"],
+                                 "estado": f["estado"]}
+
+    for r in out.values():
+        fuera = any(m["estado"] != "ok" for m in r["medidas"].values())
+        grave = r["gravedad"] in ("Grave", "Crítica")
+        r["estado"] = "critico" if grave else "falla" if r["falla"] else "alerta" if fuera else "ok"
+    return list(out.values())
+
+
+# ───────────── Reportes anteriores de una tarea (panel al costado del formulario) ─────────────
+
+def reportes_tarea(modo: str, area: str, tarea_id: str, equipo: str = "", dias: int = 7) -> dict:
+    """Los envíos de esa tarea en los últimos `dias` días (de toda la planta) y sus valores para la gráfica.
+
+    Con `equipo` (inspección), solo los de ese equipo. Si la tarea no mide nada, la gráfica es la cantidad
+    de reportes por día.
+    """
+    hoy = date.today()
+    fechas = [(hoy - timedelta(days=i)).isoformat() for i in range(dias - 1, -1, -1)]
+    with _con() as c:
+        envios = c.execute(
+            "SELECT * FROM envios WHERE modo = ? AND area = ? AND tarea_id = ? AND substr(creado, 1, 10) >= ? "
+            "ORDER BY creado DESC, id DESC", (modo, area, tarea_id, fechas[0])).fetchall()
+        ids = [e["id"] for e in envios]
+        puntos = c.execute(
+            f"SELECT * FROM puntos WHERE envio_id IN ({','.join('?' * len(ids))}) ORDER BY fecha, id", ids).fetchall() if ids else []
+
+    eq = equipo.upper()
+    por_envio: dict[int, list] = defaultdict(list)
+    for p in puntos:
+        if eq and not (p["serie"].startswith(f"{eq} · ") or p["serie"].startswith(f"{eq} (")):
+            continue
+        por_envio[p["envio_id"]].append(p)
+
+    lista, conteo = [], defaultdict(int)
+    for e in envios:
+        ps = por_envio.get(e["id"], [])
+        if eq and not ps:
+            continue
+        extra = json.loads(e["extra"] or "{}")
+        rev = extra.get("revision")
+        if rev and rev.get("tipo") == "documento":
+            estado = "ok" if rev["aceptado"] else "falla"
+        else:
+            estado = max((p["estado"] for p in ps), key=_ORDEN.index, default="ok")
+        dia = e["creado"][:10]
+        conteo[dia] += 1
+        lista.append({
+            "id": e["id"], "creado": e["creado"], "dia": dia, "nombre": (e["nombre"] or "").replace(" (Datos de ejemplo)", ""),
+            "skill_id": e["skill_id"], "archivo": e["archivo"], "resumen": e["resumen"] or "", "estado": estado,
+            "ejemplo": e["origen"] == "semilla", "campos": extra.get("campos", [])[:6]})
+
+    # Una serie por variable medida (sin el prefijo del equipo); el valor del día es el peor registrado.
+    series: dict[str, dict] = {}
+    ids_ok = {x["id"] for x in lista}
+    for p in puntos:
+        if p["envio_id"] not in ids_ok or p["valor"] is None:
+            continue
+        if eq and not (p["serie"].startswith(f"{eq} · ") or p["serie"].startswith(f"{eq} (")):
+            continue
+        nombre = p["serie"].split(" · ", 1)[1] if " · " in p["serie"] else p["serie"]
+        if eq and " · " not in p["serie"]:
+            nombre = "Generación"
+        s = series.setdefault(nombre, {"id": nombre, "nombre": nombre, "unidad": p["unidad"], "min": p["min"],
+                                       "max": p["max"], "dias": {}})
+        prev = s["dias"].get(p["fecha"])
+        if not prev or _ORDEN.index(p["estado"]) >= _ORDEN.index(prev["estado"]):
+            s["dias"][p["fecha"]] = {"valor": p["valor"], "estado": p["estado"]}
+
+    orden = ["Voltaje", "Corriente", "Temperatura", "Vibración", "Generación"]
+    malos = sorted({x["dia"] for x in lista if x["estado"] != "ok"})
+    return {"fechas": fechas, "envios": lista, "conteo": dict(conteo), "dias_mal": malos,
+            "series": sorted(series.values(), key=lambda v: orden.index(v["nombre"]) if v["nombre"] in orden else 50)}

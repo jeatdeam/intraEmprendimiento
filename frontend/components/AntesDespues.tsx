@@ -29,7 +29,7 @@ function Nota({ l }: { l: LineaHoja }) {
 }
 
 /** Una hoja del documento, línea por línea, con las marcas al lado de cada línea que las tiene. */
-function Hoja({ lineas }: { lineas: LineaHoja[] }) {
+export function Hoja({ lineas }: { lineas: LineaHoja[] }) {
   const iTitulo = lineas.findIndex((l) => l.t.trim() && l.m !== "falta");
   const iSeccion = lineas.findIndex((l) => l.m !== "falta" && esSeccion(l.t));
   const salida: ReactNode[] = [];

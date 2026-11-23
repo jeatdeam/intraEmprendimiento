@@ -84,3 +84,38 @@ async def generar(area: str, tarea: dict, skill_id: str, datos: dict, nombre: st
     if response.stop_reason == "max_tokens":
         texto += "\n\n[La respuesta se cortó por ser muy larga.]"
     return texto or "La IA no devolvió texto. Intenta de nuevo."
+
+
+def _system_chat(area: str, nombre: str, planta: str) -> str:
+    area_txt = "operación y mantenimiento en PLANTA" if area == "planta" else "trabajo administrativo en OFICINA"
+    return (
+        f"Eres el asistente de IA de {planta}, una central de generación de energía renovable "
+        f"(solar y eólica). Estás conversando con {nombre or 'un empleado'}, que hace {area_txt}. "
+        "Muchos empleados no tienen experiencia con IA y algunos son personas mayores.\n\n"
+        "Reglas:\n"
+        "- Responde siempre en español, claro, amable y breve (salvo que te pidan más detalle).\n"
+        "- Usa párrafos cortos. Si ayuda, usa listas con '- ' y **negritas** para lo importante; nada de tablas.\n"
+        "- No inventes datos de la planta. Si no sabes algo, dilo.\n"
+        "- En temas de seguridad, recuerda que el procedimiento oficial de la planta y el supervisor "
+        "tienen la última palabra.\n"
+        "- Si te comparten contraseñas o datos personales, recuérdales con amabilidad que no deben hacerlo."
+    )
+
+
+async def conversar(area: str, mensajes: list[dict], nombre: str, planta: str) -> str:
+    """Chat libre: recibe la conversación completa (role user/assistant) y devuelve la respuesta."""
+    response = await _cliente().beta.messages.create(
+        model=MODELO,
+        max_tokens=8000,
+        system=_system_chat(area, nombre, planta),
+        messages=mensajes,
+        output_config={"effort": ESFUERZO},
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
+    )
+    if response.stop_reason == "refusal":
+        return "⚠️ La IA no pudo responder a esa consulta. Prueba escribiéndola de otra forma."
+    texto = "".join(b.text for b in response.content if b.type == "text").strip()
+    if response.stop_reason == "max_tokens":
+        texto += "\n\n[La respuesta se cortó por ser muy larga.]"
+    return texto or "La IA no devolvió texto. Intenta de nuevo."

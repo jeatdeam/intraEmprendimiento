@@ -1,5 +1,5 @@
 import type {
-  ArchivoEjemplo, Area, Catalogo, Comparacion, EnvioDetalle, Historial, HistorialEquipo, HistorialUsuario, Listo, Modo, Resultado, Revision, RevisionFormato,
+  ArchivoEjemplo, Area, Catalogo, Comparacion, EnvioDetalle, Historial, HistorialEquipo, HistorialUsuario, Inspeccion, Listo, Modo, MotivoEnvio, ReportesTarea, Resultado, Revision, RevisionFormato,
   Usuario,
 } from "./types";
 
@@ -46,7 +46,7 @@ export function revisarArchivo(archivo: File, modo: Modo) {
   return pedir<Revision>("/api/archivo/revisar", { method: "POST", body: fd });
 }
 
-export const revisarEjemplo = () => pedir<Revision>("/api/archivo/ejemplo", { method: "POST" });
+export const revisarEjemplo = (modo: Modo = "practica") => pedir<Revision>(`/api/archivo/ejemplo?modo=${modo}`, { method: "POST" });
 
 /** Valores diarios para la gráfica: con `usuario`, solo lo de esa persona; sin él, toda la planta. */
 export const obtenerHistorial = (modo: Modo, dias: number, usuario?: string) =>
@@ -60,8 +60,8 @@ export function revisarDocumento(archivo: File, formato: string, modo: Modo) {
   return pedir<RevisionFormato>("/api/documento/revisar", { method: "POST", body: fd });
 }
 
-export const revisarDocumentoEjemplo = (formato: string) =>
-  pedir<RevisionFormato>(`/api/documento/ejemplo?formato=${formato}`, { method: "POST" });
+export const revisarDocumentoEjemplo = (formato: string, modo: Modo = "practica") =>
+  pedir<RevisionFormato>(`/api/documento/ejemplo?formato=${formato}&modo=${modo}`, { method: "POST" });
 
 export const cambiarFormato = (id: string, formato: string, modo: Modo) =>
   pedir<RevisionFormato>(`/api/documento/cambiar-formato?id=${id}&formato=${formato}&modo=${modo}`, { method: "POST" });
@@ -108,3 +108,25 @@ export function compararDocumento(archivo: File) {
   fd.append("archivo", archivo);
   return pedir<Comparacion>("/api/documento/comparar", { method: "POST", body: fd });
 }
+
+export type MensajeChat = { role: "user" | "assistant"; content: string };
+
+/** Chat libre ("Usar IA"): manda la conversación completa y devuelve la respuesta de la IA. */
+export const chatear = (p: { area: Area; modo: Modo; usuario: string; mensajes: MensajeChat[] }) =>
+  pedir<Resultado>("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(p),
+  });
+
+/** Base de datos de inspecciones de equipos (con `equipo`, solo las de ese equipo). */
+export const obtenerInspecciones = (modo: Modo, equipo = "") =>
+  pedir<Inspeccion[]>(`/api/inspecciones?modo=${modo}${equipo ? `&equipo=${encodeURIComponent(equipo)}` : ""}`);
+
+/** Reportes anteriores de una tarea (toda la planta) y sus valores para la gráfica. */
+export const obtenerReportesTarea = (area: Area, tarea: string, modo: Modo, equipo = "") =>
+  pedir<ReportesTarea>(`/api/tarea/anteriores?area=${area}&tarea_id=${encodeURIComponent(tarea)}&modo=${modo}${equipo ? `&equipo=${encodeURIComponent(equipo)}` : ""}`);
+
+/** Un archivo ya enviado y por qué fue aceptado o no. */
+export const obtenerMotivo = (usuario: string, envio: number) =>
+  pedir<MotivoEnvio>(`/api/usuarios/${encodeURIComponent(usuario)}/envios/${envio}/motivo`);

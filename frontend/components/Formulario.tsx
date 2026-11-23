@@ -1,14 +1,15 @@
 "use client";
 import { useRef, type FormEvent } from "react";
 import { ArrowLeft, CircleAlert, Lock, PencilLine, RotateCcw, Sparkles } from "lucide-react";
-import type { Envio, Skill, Tarea } from "@/lib/types";
+import type { Area, Envio, Skill, Tarea } from "@/lib/types";
 import { Coach, Pasos } from "./Ayudas";
 import { IconoBurbuja } from "./Icono";
 import CampoArchivo from "./CampoArchivo";
 import CampoDocumento from "./CampoDocumento";
-import HistorialEquipo from "./HistorialEquipo";
+import ReportesAnteriores from "./ReportesAnteriores";
 
 interface Props {
+  area: Area;
   tarea: Tarea;
   skill: Skill;
   skillId: string;
@@ -24,9 +25,9 @@ interface Props {
   onVolver: () => void;
 }
 
-export default function Formulario({ tarea, skill, skillId, datos, practica, error, usuario, enviados, onCambio, onFalta, onEjemplo, onEnviar, onVolver }: Props) {
+export default function Formulario({ area, tarea, skill, skillId, datos, practica, error, usuario, enviados, onCambio, onFalta, onEjemplo, onEnviar, onVolver }: Props) {
   const form = useRef<HTMLFormElement>(null);
-  // Si el formulario tiene un equipo conocido (AG-07, INV-03…), al costado se muestran sus días anteriores.
+  // Si el formulario tiene un equipo conocido (AG-07, INV-03…), los reportes anteriores son solo de ese equipo.
   const equipoId = (datos.equipo ?? "").match(/\b(AG|INV|TR)-\d{2}\b/i)?.[0].toUpperCase();
 
   const enviar = (e: FormEvent) => {
@@ -88,15 +89,15 @@ export default function Formulario({ tarea, skill, skillId, datos, practica, err
           ))}
           {error && <p className="error" role="alert"><CircleAlert size={20} aria-hidden="true" /> {error}</p>}
           <div className="row acciones-form">
-            <button type="submit" className="btn pri"><Sparkles size={22} aria-hidden="true" /> Enviar a la IA</button>
-            {practica && !tarea.campos.some((c) => c.tipo === "archivo" || c.tipo === "documento") && (
+            <button type="submit" className="btn pri"><Sparkles size={22} aria-hidden="true" /> Enviar</button>
+            {!tarea.campos.some((c) => c.tipo === "archivo" || c.tipo === "documento") && (
               <button type="button" className="btn sec" onClick={onEjemplo}><RotateCcw size={20} aria-hidden="true" /> Volver a los datos de ejemplo</button>
             )}
           </div>
         </form>
 
         <div className="lateral">
-        {equipoId && <HistorialEquipo equipo={equipoId} modo={practica ? "practica" : "real"} />}
+        <ReportesAnteriores area={area} tarea={tarea.id} nombreTarea={tarea.nombre} modo={practica ? "practica" : "real"} equipo={equipoId} />
         <aside className="skillbox glass" aria-label="Qué hará el skill">
           <div className="skillbox-head">
             <IconoBurbuja nombre={skill.ico} size={20} />

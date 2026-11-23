@@ -4,6 +4,9 @@ Endpoints:
   GET  /api/salud              -> estado del servidor y si la IA está configurada
   GET  /api/catalogo?area=...  -> skills y tareas del área (planta | oficina)
   POST /api/ejecutar           -> ejecuta una tarea con el skill elegido (y la guarda en el historial)
+  POST /api/chat               -> chat libre con la IA ("Usar IA")
+  GET  /api/inspecciones       -> base de datos de inspecciones de equipos (con ?equipo= para uno solo)
+  GET  /api/tarea/anteriores   -> reportes anteriores de una tarea y sus valores para la gráfica
   POST /api/archivo/revisar    -> revisa estructura y rangos de un Excel/CSV
   POST /api/archivo/ejemplo    -> revisa el archivo ficticio (modo práctica)
   GET  /api/archivo/plantilla  -> descarga la plantilla CSV vacía
@@ -37,14 +40,14 @@ load_dotenv()
 
 from .catalogo import SKILLS, TAREAS, buscar_tarea, skills_publicos  # noqa: E402
 from . import historial  # noqa: E402
-from .ia import generar, ia_configurada  # noqa: E402
+from .ia import conversar, generar, ia_configurada  # noqa: E402
 from .formatos import (FORMATOS, documento_ejemplo, leer_documento, plantilla_docx,  # noqa: E402
                        reporte_formato, revisar_formato)
 from .comparador import comparar, detectar_formato  # noqa: E402
 from .listos import (buscar_listo, buscar_listo_datos, correccion_de, evaluar_listo, listos_datos_de,  # noqa: E402
                      listos_de)
 from .reglas import archivo_ejemplo, plantilla_csv, reporte_texto, validar_archivo, validar_filas  # noqa: E402
-from .simulador import simular  # noqa: E402
+from .simulador import simular, simular_chat  # noqa: E402
 from .usuarios import buscar_usuario, usuarios_publicos  # noqa: E402
 
 log = logging.getLogger("asistente")
@@ -70,6 +73,19 @@ if os.getenv("SEMBRAR_DATOS", "true").lower() == "true":
     from .semilla_usuarios import sembrar_usuarios
     sembrar_todo()
     sembrar_usuarios(NOMBRE_PLANTA)
+    # Demo: fechas de ejemplo siempre al día (terminan ayer) y 5 reportes anteriores en cada tarea.
+    from .semilla_demo import refrescar_fechas, sembrar_tareas
+    refrescar_fechas()
+    sembrar_tareas(NOMBRE_PLANTA)
+
+
+@app.get("/api/tarea/anteriores")
+def ver_reportes_tarea(area: Area, tarea_id: str, modo: Modo, equipo: str = Query("", max_length=10),
+                       dias: int = Query(7, ge=3, le=30)):
+    """Reportes anteriores de una tarea (toda la planta) y sus valores para la gráfica."""
+    if not buscar_tarea(area, tarea_id):
+        raise HTTPException(404, "Tarea no encontrada para esta área")
+    return historial.reportes_tarea(modo, area, tarea_id, equipo, dias)
 
 
 @app.get("/api/historial/equipo")
@@ -195,8 +211,8 @@ async def ejecutar(e: Ejecucion):
     usar_ia = ia_configurada() and (e.modo == "real" or PRACTICA_USA_IA)
     if not usar_ia:
         texto = simular(e.area, tarea, e.skill_id, e.datos, e.nombre, NOMBRE_PLANTA, resultado)
-        _registrar(e, tarea, "simulado", revision, texto, resultado)
-        return {"texto": texto, "origen": "simulado"}
+        eid = _registrar(e, tarea, "simulado", revision, texto, resultado)
+        return {"texto": texto, "origen": "simulado", "envio_id": eid, "entrada": _entrada(tarea, e.datos)}
 
     try:
         texto = await generar(e.area, tarea, e.skill_id, e.datos, e.nombre, NOMBRE_PLANTA)
@@ -207,16 +223,60 @@ async def ejecutar(e: Ejecucion):
     except anthropic.APIStatusError as err:
         log.exception("Error de la API de IA")
         raise HTTPException(502, f"La IA respondió con un error ({err.status_code}). Avisa a soporte.")
-    _registrar(e, tarea, "ia", revision, texto, resultado)
+    eid = _registrar(e, tarea, "ia", revision, texto, resultado)
+    return {"texto": texto, "origen": "ia", "envio_id": eid, "entrada": _entrada(tarea, e.datos)}
+
+
+def _entrada(tarea: dict, datos: dict) -> list[dict]:
+    """Lo que recibió el skill, campo por campo (los archivos ya convertidos en su reporte): el "antes" del resultado."""
+    return [{"label": c["label"], "valor": datos.get(c["id"], "").strip()} for c in tarea["campos"]
+            if datos.get(c["id"], "").strip()]
+
+
+class MensajeChat(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=8000)
+
+
+class Chat(BaseModel):
+    area: Area
+    modo: Modo
+    usuario: str = Field(default="", max_length=40)
+    mensajes: list[MensajeChat] = Field(min_length=1, max_length=60)
+
+
+@app.post("/api/chat")
+async def chat(c: Chat):
+    if c.mensajes[-1].role != "user":
+        raise HTTPException(422, "El último mensaje debe ser del usuario")
+    u = buscar_usuario(c.usuario)
+    nombre = u["nombre"] if u else ""
+    if not (ia_configurada() and (c.modo == "real" or PRACTICA_USA_IA)):
+        return {"texto": simular_chat(c.mensajes[-1].content, nombre, NOMBRE_PLANTA), "origen": "simulado"}
+    try:
+        texto = await conversar(c.area, [m.model_dump() for m in c.mensajes], nombre, NOMBRE_PLANTA)
+    except anthropic.RateLimitError:
+        raise HTTPException(503, "La IA está muy ocupada en este momento. Intenta en un minuto.")
+    except anthropic.APIConnectionError:
+        raise HTTPException(503, "No se pudo conectar con la IA. Revisa la conexión a internet.")
+    except anthropic.APIStatusError as err:
+        log.exception("Error de la API de IA (chat)")
+        raise HTTPException(502, f"La IA respondió con un error ({err.status_code}). Avisa a soporte.")
     return {"texto": texto, "origen": "ia"}
 
 
-def _registrar(e: Ejecucion, tarea: dict, origen: str, revision, texto: str, archivo: dict | None) -> None:
+def _registrar(e: Ejecucion, tarea: dict, origen: str, revision, texto: str, archivo: dict | None) -> int | None:
     try:
-        historial.registrar(e.modo, e.area, tarea, e.skill_id, e.nombre, origen, e.datos, revision,
-                            usuario=e.usuario, texto=texto, archivo=archivo)
+        return historial.registrar(e.modo, e.area, tarea, e.skill_id, e.nombre, origen, e.datos, revision,
+                                   usuario=e.usuario, texto=texto, archivo=archivo)
     except Exception:  # el historial nunca debe impedir entregar el resultado
         log.exception("No se pudo guardar el envío en el historial")
+        return None
+
+
+@app.get("/api/inspecciones")
+def ver_inspecciones(modo: Modo, equipo: str = Query("", max_length=10)):
+    return historial.listar_inspecciones(modo, equipo)
 
 
 def _revisar(contenido: bytes, nombre: str, modo: str) -> dict:
@@ -264,6 +324,33 @@ def revisar_envio_datos(uid: str, envio_id: int, modo: Modo):
     return _guardar_revision(validar_filas(e["tabla"], e["archivo"] or "archivo"), modo)
 
 
+@app.get("/api/usuarios/{uid}/envios/{envio_id}/motivo")
+def motivo_envio(uid: str, envio_id: int):
+    """Un archivo ya enviado y POR QUÉ fue aceptado o no (se vuelve a revisar sin guardar nada).
+
+    Documento: los puntos del formato oficial que cumple y los que no. Archivo de datos: sus problemas.
+    """
+    _usuario(uid)
+    e = historial.leer_envio(envio_id, uid)
+    if not e or not e["revision"]:
+        raise HTTPException(404, "Ese archivo ya no está en el historial")
+    if e["revision"]["tipo"] == "documento":
+        fid = e["skill_id"].removeprefix("fmt_")
+        if not e["documento"] or fid not in FORMATOS:
+            raise HTTPException(422, "De ese documento solo se guardó el resultado.")
+        r = revisar_formato(e["documento"], fid, e["archivo"] or "documento")
+        return {"tipo": "documento", "archivo": e["archivo"], "creado": e["creado"], "aceptado": r["aceptado"],
+                "cumple": r["cumple"], "total": r["total"], "formato": r["nombre"], "codigo": r["codigo"],
+                "checks": r["checks"], "observaciones": r["observaciones"], "documento": e["documento"]}
+    if not e["tabla"]:
+        raise HTTPException(422, "De ese archivo solo se guardó el resultado, no su contenido.")
+    r = validar_filas(e["tabla"], e["archivo"] or "archivo")
+    alertas = sum(r["resumen"][k] for k in ("errores", "bajos", "altos", "fallas"))
+    return {"tipo": "archivo", "archivo": e["archivo"], "creado": e["creado"], "aceptado": not alertas and not r["bloqueado"],
+            "resumen": r["resumen"], "filas": r["filas"], "estructura": r["estructura"], "problemas": r["problemas"][:40],
+            "tabla": e["tabla"][:16]}
+
+
 @app.post("/api/archivo/revisar")
 async def revisar_archivo(archivo: UploadFile = File(...), modo: Modo = Form("real")):
     contenido = await archivo.read(MAX_BYTES + 1)
@@ -273,8 +360,8 @@ async def revisar_archivo(archivo: UploadFile = File(...), modo: Modo = Form("re
 
 
 @app.post("/api/archivo/ejemplo")
-def revisar_ejemplo():
-    return _revisar(archivo_ejemplo(), "produccion_ejemplo.csv", "practica")
+def revisar_ejemplo(modo: Modo = "practica"):
+    return _revisar(archivo_ejemplo(), "produccion_ejemplo.csv", modo)
 
 
 def _csv(contenido: bytes, nombre: str) -> Response:
@@ -324,8 +411,8 @@ async def revisar_documento(archivo: UploadFile = File(...), formato: Formato = 
 
 
 @app.post("/api/documento/ejemplo")
-def revisar_documento_ejemplo(formato: Formato):
-    return _revisar_doc(documento_ejemplo(formato), f"ejemplo_{formato}.txt", formato, "practica")
+def revisar_documento_ejemplo(formato: Formato, modo: Modo = "practica"):
+    return _revisar_doc(documento_ejemplo(formato), f"ejemplo_{formato}.txt", formato, modo)
 
 
 @app.post("/api/documento/cambiar-formato")

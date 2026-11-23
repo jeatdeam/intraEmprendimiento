@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Bot, Brain, Eye, GraduationCap, MousePointerClic
 
 const PAGINAS: { i: LucideIcon; t: string; p: React.ReactNode }[] = [
   { i: Bot, t: "¿Qué es la IA?", p: <>Es un programa que entiende lo que escribes y te ayuda a redactar, resumir, revisar números o explicar cosas. Es como un asistente que trabaja muy rápido.</> },
-  { i: MousePointerClick, t: "Aquí solo tocas botones", p: <>1) Eliges la <b>tarea</b>. 2) Eliges el <b>skill</b>. 3) Revisas los datos. 4) Tocas <b>Enviar a la IA</b>. 5) Lees el resultado.</> },
+  { i: MousePointerClick, t: "Aquí solo tocas botones", p: <>1) Eliges la <b>tarea</b>. 2) Eliges el <b>skill</b>. 3) Revisas los datos. 4) Tocas <b>Enviar</b>. 5) Lees el resultado.</> },
   { i: Brain, t: "¿Qué es un skill?", p: <>Es una habilidad que le das a la IA. El mismo texto puede convertirse en un informe formal, en una lista corta o en una explicación fácil, según el skill que elijas.</> },
   { i: GraduationCap, t: "Modo práctica", p: <>Mientras estés en <b>Práctica</b>, todo usa <b>datos falsos</b>. No se envía nada a nadie. Equivócate todo lo que quieras: así se aprende.</> },
   { i: Eye, t: "Una regla de oro", p: <>La IA puede equivocarse. <b>Siempre lee el resultado</b> antes de usarlo, y nunca escribas contraseñas ni datos personales.</> },

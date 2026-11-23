@@ -609,3 +609,52 @@ def simular(area: str, t: dict, skill: str, d: dict, nombre: str, planta: str, r
                 f"Saludos cordiales,\n{firma}\n{planta} — {area_txt}")
 
     return "Skill no reconocido."
+
+
+# ───────────── Chat libre (práctica / sin clave) ─────────────
+
+_RESPUESTAS_CHAT = [
+    (("hola", "buenos", "buenas", "saludos"),
+     "¡Hola, {nombre}! Soy el asistente de IA de {planta}. Puedes escribirme cualquier pregunta: "
+     "cómo redactar un correo, qué revisar en un equipo, cómo resumir un texto o qué significa una palabra técnica."),
+    (("correo", "mail", "email"),
+     "Claro, te ayudo con el correo. Una buena estructura es:\n\n"
+     "- **Saludo** corto y respetuoso.\n- **Motivo** en una sola oración.\n"
+     "- **Detalle**: qué pasó, cuándo y qué necesitas.\n- **Cierre** con tu nombre y cargo.\n\n"
+     "Cuéntame a quién va dirigido y de qué trata, y te lo dejo listo."),
+    (("aerogenerador", "turbina", "viento", "aspa"),
+     "Para un aerogenerador, lo básico a revisar es:\n\n"
+     "- Velocidad del viento **bajo el límite permitido** antes de subir.\n"
+     "- Fugas de aceite en la góndola.\n- Estado de las aspas (grietas o golpes).\n"
+     "- Ruidos raros en la caja multiplicadora.\n\n"
+     "Recuerda que el procedimiento oficial y tu supervisor tienen la última palabra."),
+    (("inversor", "panel", "solar"),
+     "En la parte solar conviene revisar:\n\n"
+     "- Mensajes de error en la pantalla del inversor.\n- Temperatura del gabinete y filtros de ventilación.\n"
+     "- Suciedad, sombras o vidrios rotos en los paneles.\n\n¿Quieres que te arme una lista de chequeo?"),
+    (("resumen", "resumir", "resume"),
+     "Puedo resumirte cualquier texto. Pégalo aquí y dime si lo quieres en **3 puntos**, en **un párrafo** "
+     "o explicado **con palabras sencillas**."),
+    (("qué es", "que es", "ia", "inteligencia"),
+     "La **inteligencia artificial** es un programa que entiende lo que escribes y te responde. "
+     "Te puede ayudar a redactar, resumir, ordenar ideas o explicar temas. Puede equivocarse, "
+     "así que **siempre revisa** lo que te responde antes de usarlo."),
+    (("gracias",),
+     "¡De nada, {nombre}! Si tienes otra consulta, escríbela cuando quieras."),
+]
+
+
+def simular_chat(pregunta: str, nombre: str, planta: str) -> str:
+    p = pregunta.lower()
+    primer = (nombre or "").split(" ")[0] or "compañero"
+    for claves, texto in _RESPUESTAS_CHAT:
+        if any(re.search(rf"\b{re.escape(c)}\b", p) for c in claves):
+            return texto.format(nombre=primer, planta=planta)
+    return (
+        f"Buena pregunta, {primer}. Estás en **modo práctica**, así que esta es una respuesta de ejemplo: "
+        "aquí la IA real te contestaría con una explicación clara y adaptada a lo que preguntaste.\n\n"
+        "Consejos para preguntar mejor:\n\n"
+        "- Di **qué necesitas** (un correo, un resumen, una lista…).\n"
+        "- Da el **contexto**: equipo, fecha, a quién va dirigido.\n"
+        "- Pide el **formato**: corto, en puntos o paso a paso."
+    )

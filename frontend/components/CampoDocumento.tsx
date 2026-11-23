@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { CircleAlert, CircleCheck, CircleX, Download, FileText, FolderOpen, LoaderCircle, Sparkles, Upload } from "lucide-react";
-import { cambiarFormato, obtenerListos, revisarDocumento, revisarDocumentoEjemplo, revisarEnvio, revisarListo } from "@/lib/api";
-import type { Envio, Listo, Modo, RevisionFormato } from "@/lib/types";
+import { antesDespues, cambiarFormato, evaluarListo, obtenerListos, revisarDocumento, revisarDocumentoEjemplo, revisarEnvio, revisarListo } from "@/lib/api";
+import type { Comparacion, Envio, Listo, Modo, RevisionFormato } from "@/lib/types";
+import SliderFormato from "./SliderFormato";
+import VisorEnvio from "./VisorEnvio";
 import { Apps } from "./Apps";
 import FilaArchivo from "./FilaArchivo";
 import { EstadoArchivo, fechaHora } from "./MiHistorial";
@@ -32,7 +34,23 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio, usu
   const [arrastrando, setArrastrando] = useState(false);
   const [ejemplos, setEjemplos] = useState<Listo[]>([]);
   const [elegido, setElegido] = useState("");          // clave del archivo de la lista que está cargado
+  const [visor, setVisor] = useState<number | null>(null);   // archivo enviado abierto en el panel de la derecha
+  const [comparar, setComparar] = useState<Comparacion[]>([]);   // grupos del slider: formato normal vs formato con skill
   const practica = modo === "practica";
+
+  // Slider after/before: el documento cargado primero y luego 3 archivos de ejemplo del mismo formato.
+  useEffect(() => {
+    if (!rev) { setComparar([]); return; }
+    let vigente = true;
+    const otros = usuario ? ejemplos.filter((l) => elegido !== `listo:${l.id}`).slice(0, 3) : [];
+    Promise.allSettled([
+      antesDespues(rev.id, modo, usuario ?? ""),
+      ...otros.map((l) => evaluarListo(usuario!, l.id)),
+    ]).then((rs) => {
+      if (vigente) setComparar(rs.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])));
+    });
+    return () => { vigente = false; };
+  }, [rev, ejemplos, elegido, modo, usuario]);
 
   async function revisar(p: Promise<RevisionFormato>, clave = "") {
     setCargando(true);
@@ -56,7 +74,7 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio, usu
   useEffect(() => {
     const previa = cache.get(valor);
     if (previa && previa.formato !== formato) revisar(cambiarFormato(previa.id, formato, modo)); // cambió el skill
-    else if (!previa && practica) revisar(revisarDocumentoEjemplo(formato));
+    else if (!previa) revisar(revisarDocumentoEjemplo(formato, modo));   // es una demo: siempre llega con un ejemplo cargado
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formato]);
 
@@ -141,6 +159,7 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio, usu
               <span>Cumple {rev.cumple} de {rev.total} puntos del formato oficial</span>
             </div>
           </div>
+          {comparar.length > 0 && <SliderFormato grupos={comparar} />}
           {grupos.map((g) => (
             <div key={g} className="checks">
               <span className="checks-tit">{g}</span>
@@ -172,7 +191,7 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio, usu
               <ul className="elegibles-lista">
                 {mios.map((e) => (
                   <FilaArchivo key={e.id} clave={`envio:${e.id}`} archivo={e.archivo ?? "documento"} activo={elegido === `envio:${e.id}`}
-                    onElegir={() => cargar(`envio:${e.id}`)}>
+                    onElegir={() => setVisor(e.id)}>
                     <small>{fechaHora(e.creado)}{e.modo === "practica" && <span className="hist-modo">Práctica</span>}</small>
                     <EstadoArchivo e={e} />
                   </FilaArchivo>
@@ -199,8 +218,11 @@ export default function CampoDocumento({ id, modo, formato, valor, onCambio, usu
               ))}
             </ul>
           </section>
-          <p className="hint">Arrastra cualquiera al recuadro de arriba, o tócalo, para cargarlo.</p>
+          <p className="hint">Toca uno de tus archivos enviados para verlo a la derecha con el motivo por el que fue aceptado o no. Los de ejemplo se cargan al tocarlos o arrastrarlos al recuadro.</p>
         </div>
+      )}
+      {visor !== null && usuario && (
+        <VisorEnvio usuario={usuario} envio={visor} onUsar={() => cargar(`envio:${visor}`)} onCerrar={() => setVisor(null)} />
       )}
     </div>
   );

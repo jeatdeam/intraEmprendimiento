@@ -10,6 +10,9 @@ import Resultado, { Procesando } from "@/components/Resultado";
 import Tutorial from "@/components/Tutorial";
 import Grafica from "@/components/Grafica";
 import MiHistorial, { EnvioGuardado } from "@/components/MiHistorial";
+import ChatIA from "@/components/ChatIA";
+import BaseInspecciones from "@/components/BaseInspecciones";
+import type { MensajeUI } from "@/lib/guiaChat";
 import { ejecutarTarea, obtenerCatalogo, obtenerHistorialUsuario, obtenerUsuarios } from "@/lib/api";
 import { guardar, leer } from "@/lib/almacen";
 import type { Area, Catalogo, Envio, HistorialUsuario, Modo, Pantalla, Resultado as Res, Tarea, Usuario } from "@/lib/types";
@@ -39,6 +42,14 @@ export default function Home() {
   const [errorHistorial, setErrorHistorial] = useState("");
   const [envioId, setEnvioId] = useState<number | null>(null);
   const [vieneDe, setVieneDe] = useState<Pantalla>("inicio");   // a dónde vuelve el botón del historial
+  // Chat "Usar IA": la conversación se conserva al cerrar y volver a abrir la ventana.
+  const [chatAbierto, setChatAbierto] = useState(false);
+  const [chat, setChat] = useState<MensajeUI[]>([]);
+  const cerrarChat = useCallback(() => setChatAbierto(false), []);
+  // Base de datos de inspecciones: la última inspección enviada se resalta al abrirla.
+  const [inspeccionNueva, setInspeccionNueva] = useState<number | null>(null);
+  const [inspeccionResaltada, setInspeccionResaltada] = useState<number | null>(null);
+  const [vieneDeBD, setVieneDeBD] = useState<Pantalla>("tareas");
 
   const letra = (px: number) => {
     document.documentElement.style.setProperty("--fs", `${px}px`);
@@ -127,17 +138,27 @@ export default function Home() {
     if (practica && !leer("tutorial", false)) setTutorial(true);
   }
 
-  function datosIniciales(t: Tarea, enPractica: boolean) {
-    if (enPractica) return { ...t.ejemplo };
+  // Es una demo: el formulario siempre llega lleno con datos de ejemplo (en práctica y en trabajo real),
+  // así solo falta tocar "Enviar". El nombre del operador es el del usuario elegido.
+  function datosIniciales(t: Tarea) {
     const base: Record<string, string> = {};
     t.campos.forEach((c) => { if (c.tipo === "select" && c.opciones) base[c.id] = c.opciones[0]; });
-    if (t.campos.some((c) => c.id === "operador")) base.operador = nombre;
+    Object.assign(base, t.ejemplo);
+    if (t.campos.some((c) => c.id === "operador") && nombre) base.operador = nombre;
     return base;
+  }
+
+  // En la inspección, al cambiar de equipo se cargan las mediciones de ejemplo de ese equipo.
+  function cambiarDato(id: string, v: string) {
+    const ej = id === "equipo" ? tarea?.ejemplos_equipo?.[v] : undefined;
+    setDatos((d) => (ej ? { ...d, ...ej } : { ...d, [id]: v }));
+    setError("");
+    if (ej) mostrarAviso(`Mediciones de ejemplo de ${v.split(" · ")[0]} cargadas`);
   }
 
   function elegirTarea(t: Tarea) {
     setTarea(t);
-    setDatos(datosIniciales(t, practica));
+    setDatos(datosIniciales(t));
     ir("skill");
   }
 
@@ -149,7 +170,7 @@ export default function Home() {
       if (!t || !cat.skills[e.skill_id]) { mostrarAviso("Esa tarea ya no está disponible"); return; }
       window.speechSynthesis?.cancel();
       setArea(e.area); setModo(e.modo); setCatalogo(cat);
-      setTarea(t); setSkillId(e.skill_id); setDatos(datosIniciales(t, e.modo === "practica"));
+      setTarea(t); setSkillId(e.skill_id); setDatos(datosIniciales(t));
       ir("datos");
     } catch (err) {
       mostrarAviso((err as Error).message);
@@ -170,6 +191,13 @@ export default function Home() {
     ir("envio");
   };
 
+  function abrirInspecciones(resaltar: number | null) {
+    window.speechSynthesis?.cancel();
+    setVieneDeBD(pantalla === "resultado" ? "resultado" : "tareas");
+    setInspeccionResaltada(resaltar);
+    ir("inspecciones");
+  }
+
   async function enviar() {
     if (!usuario || !area || !tarea || !skill) return;
     ir("procesando");
@@ -185,6 +213,7 @@ export default function Home() {
         animacion,
       ]);
       setResultado(r);
+      if (tarea.id === "inspeccion" && r.envio_id) setInspeccionNueva(r.envio_id);
       cargarHistorial(usuario.id);   // el envío ya quedó guardado en su historial
       ir("resultado");
     } catch (e) {
@@ -225,18 +254,19 @@ export default function Home() {
           )}
           {pantalla === "tareas" && catalogo && (
             <SelectorTareas nombre={nombre} tareas={catalogo.tareas} practica={practica} hechas={hechasArea} onElegir={elegirTarea}
-              onGrafica={() => ir("grafica")} onHistorial={abrirHistorial} />
+              onGrafica={() => ir("grafica")} onHistorial={abrirHistorial} onChat={() => setChatAbierto(true)}
+              onInspecciones={area === "planta" ? () => abrirInspecciones(null) : undefined} />
           )}
           {pantalla === "skill" && catalogo && tarea && (
             <SelectorSkill tarea={tarea} skills={catalogo.skills} practica={practica}
               onElegir={(id) => { setSkillId(id); ir("datos"); }} onVolver={() => ir("tareas")} />
           )}
           {pantalla === "datos" && tarea && skill && (
-            <Formulario tarea={tarea} skill={skill} skillId={skillId} datos={datos} practica={practica} error={error}
+            <Formulario area={area ?? "planta"} tarea={tarea} skill={skill} skillId={skillId} datos={datos} practica={practica} error={error}
               usuario={usuario?.id ?? ""} enviados={historial?.archivos ?? []}
-              onCambio={(id, v) => { setDatos((d) => ({ ...d, [id]: v })); setError(""); }}
+              onCambio={cambiarDato}
               onFalta={setError}
-              onEjemplo={() => { setDatos({ ...tarea.ejemplo }); mostrarAviso("Datos de ejemplo restaurados"); }}
+              onEjemplo={() => { setDatos(datosIniciales(tarea)); mostrarAviso("Datos de ejemplo restaurados"); }}
               onEnviar={enviar} onVolver={() => ir("skill")} />
           )}
           {pantalla === "grafica" && usuario && (
@@ -254,9 +284,14 @@ export default function Home() {
           )}
           {pantalla === "procesando" && skill && <Procesando skill={skill} practica={practica} pasoActual={pasoIA} />}
           {pantalla === "resultado" && tarea && skill && resultado && (
-            <Resultado tarea={tarea} skill={skill} texto={resultado.texto} planta={planta} origen={resultado.origen} practica={practica}
+            <Resultado tarea={tarea} skill={skill} texto={resultado.texto} entrada={resultado.entrada ?? []} planta={planta} origen={resultado.origen} practica={practica}
               usuario={usuario?.id ?? ""} revision={datos[tarea.campos.find((c) => c.tipo === "documento")?.id ?? ""] ?? ""}
-              onOtroSkill={() => ir("skill")} onOtraTarea={() => ir("tareas")} onAviso={mostrarAviso} />
+              onOtroSkill={() => ir("skill")} onOtraTarea={() => ir("tareas")} onAviso={mostrarAviso}
+              onBaseDatos={tarea.id === "inspeccion" ? () => abrirInspecciones(inspeccionNueva) : undefined} />
+          )}
+          {pantalla === "inspecciones" && (
+            <BaseInspecciones modo={modo} resaltar={inspeccionResaltada} onVolver={() => ir(vieneDeBD)}
+              volverA={vieneDeBD === "resultado" ? "Volver al resultado" : "Volver a las tareas"} />
           )}
         </div>
       </main>
@@ -264,6 +299,10 @@ export default function Home() {
       <footer className="pie">
         <Creditos />
       </footer>
+      {chatAbierto && usuario && area && (
+        <ChatIA area={area} modo={modo} usuario={usuario.id} nombre={nombre} mensajes={chat} onMensajes={setChat}
+          onCerrar={cerrarChat} onAviso={mostrarAviso} />
+      )}
       {tutorial && <Tutorial onCerrar={cerrarTutorial} />}
       {aviso && <div className="toast" role="status"><CircleCheck size={20} aria-hidden="true" /> {aviso}</div>}
     </>
