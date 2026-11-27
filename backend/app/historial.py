@@ -236,14 +236,19 @@ def listar_envios(usuario: str, limite: int = 60) -> list[dict]:
     return [_fila_envio(f) for f in filas]
 
 
-def leer_envio(eid: int, usuario: str) -> dict | None:
+def leer_envio(eid: int, usuario: str | None, modo: str | None = None) -> dict | None:
+    """Un envío guardado. Con `usuario`, solo si es de esa persona; con `usuario=None`, de toda la planta
+    (los reportes anteriores de una tarea), y entonces `modo` evita mezclar práctica con trabajo real."""
+    filtro, args = ("AND usuario = ?", [usuario]) if usuario is not None else ("", [])
+    if modo:
+        filtro, args = f"{filtro} AND modo = ?", [*args, modo]
     with _con() as c:
-        f = c.execute("SELECT * FROM envios WHERE id = ? AND usuario = ?", (eid, usuario)).fetchone()
+        f = c.execute(f"SELECT * FROM envios WHERE id = ? {filtro}", (eid, *args)).fetchone()
     if not f:
         return None
     extra = json.loads(f["extra"] or "{}")
     return {**_fila_envio(f), "campos": extra.get("campos", []), "documento": extra.get("documento", ""),
-            "tabla": extra.get("tabla"), "texto": f["resultado"] or ""}
+            "tabla": extra.get("tabla"), "texto": f["resultado"] or "", "nombre": f["nombre"] or ""}
 
 
 # ───────────── Consulta para la gráfica ─────────────

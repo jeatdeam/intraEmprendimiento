@@ -7,6 +7,7 @@ Endpoints:
   POST /api/chat               -> chat libre con la IA ("Usar IA")
   GET  /api/inspecciones       -> base de datos de inspecciones de equipos (con ?equipo= para uno solo)
   GET  /api/tarea/anteriores   -> reportes anteriores de una tarea y sus valores para la gráfica
+  GET  /api/reportes/{envio}   -> un reporte anterior: su documento o archivo, por qué se aceptó o no y el resultado
   POST /api/archivo/revisar    -> revisa estructura y rangos de un Excel/CSV
   POST /api/archivo/ejemplo    -> revisa el archivo ficticio (modo práctica)
   GET  /api/archivo/plantilla  -> descarga la plantilla CSV vacía
@@ -334,6 +335,34 @@ def motivo_envio(uid: str, envio_id: int):
     e = historial.leer_envio(envio_id, uid)
     if not e or not e["revision"]:
         raise HTTPException(404, "Ese archivo ya no está en el historial")
+    return _motivo(e)
+
+
+@app.get("/api/reportes/{envio_id}")
+def ver_reporte(envio_id: int, modo: Modo):
+    """Un reporte anterior de una tarea (de toda la planta), para verlo desde el panel al costado del formulario.
+
+    Si llevaba un archivo, trae el archivo y por qué fue aceptado o no (igual que /motivo). Si era una consulta,
+    trae lo que se escribió. En los dos casos trae también el documento que entregó la IA.
+    """
+    e = historial.leer_envio(envio_id, None, modo)
+    if not e:
+        raise HTTPException(404, "Ese reporte ya no está guardado")
+    base = {"archivo": e["archivo"], "creado": e["creado"], "tarea": e["tarea"],
+            "nombre": e["nombre"].replace(" (Datos de ejemplo)", ""),
+            "skill": SKILLS.get(e["skill_id"], {}).get("nombre", e["skill_id"]),
+            "campos": e["campos"], "resultado": e["texto"]}
+    if not e["revision"]:
+        return {**base, "tipo": "consulta", "aceptado": True}
+    try:
+        return {**base, **_motivo(e)}
+    except HTTPException:
+        # Del archivo solo quedó el resultado: se muestra lo que entregó la IA.
+        return {**base, "tipo": "consulta", "aceptado": bool(e["revision"].get("aceptado", True))}
+
+
+def _motivo(e: dict) -> dict:
+    """El archivo de un envío y por qué fue aceptado o no (se vuelve a revisar sin guardar nada)."""
     if e["revision"]["tipo"] == "documento":
         fid = e["skill_id"].removeprefix("fmt_")
         if not e["documento"] or fid not in FORMATOS:

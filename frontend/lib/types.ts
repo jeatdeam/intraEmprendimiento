@@ -276,3 +276,13 @@ export type MotivoEnvio = {
       resumen: { errores: number; bajos: number; altos: number; fallas: number; validas: number; equipos: number; desde: string; hasta: string };
       problemas: { fila: number; columna: string; valor: string; tipo: string; mensaje: string }[] }
 );
+
+/** Un reporte anterior abierto desde el panel al costado del formulario: su archivo (si llevaba uno),
+ *  lo que se escribió y el documento que entregó la IA. */
+export type ReporteVisto = {
+  tarea: string;
+  nombre: string;
+  skill: string;
+  campos: { label: string; valor: string }[];
+  resultado: string;
+} & (MotivoEnvio | { tipo: "consulta"; archivo: string | null; creado: string; aceptado: boolean });

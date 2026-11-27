@@ -1,5 +1,5 @@
 import type {
-  ArchivoEjemplo, Area, Catalogo, Comparacion, EnvioDetalle, Historial, HistorialEquipo, HistorialUsuario, Inspeccion, Listo, Modo, MotivoEnvio, ReportesTarea, Resultado, Revision, RevisionFormato,
+  ArchivoEjemplo, Area, Catalogo, Comparacion, EnvioDetalle, Historial, HistorialEquipo, HistorialUsuario, Inspeccion, Listo, Modo, MotivoEnvio, ReportesTarea, ReporteVisto, Resultado, Revision, RevisionFormato,
   Usuario,
 } from "./types";
 
@@ -130,3 +130,7 @@ export const obtenerReportesTarea = (area: Area, tarea: string, modo: Modo, equi
 /** Un archivo ya enviado y por qué fue aceptado o no. */
 export const obtenerMotivo = (usuario: string, envio: number) =>
   pedir<MotivoEnvio>(`/api/usuarios/${encodeURIComponent(usuario)}/envios/${envio}/motivo`);
+
+/** Un reporte anterior de una tarea (de toda la planta): su documento o archivo, por qué se aceptó y el resultado. */
+export const obtenerReporte = (envio: number, modo: Modo) =>
+  pedir<ReporteVisto>(`/api/reportes/${envio}?modo=${modo}`);

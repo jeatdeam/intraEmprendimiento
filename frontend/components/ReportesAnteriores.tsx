@@ -5,11 +5,12 @@
  * (voltaje, temperatura, energía…). Si la tarea no mide nada, la gráfica es cuántos reportes hubo cada día.
  */
 import { useEffect, useRef, useState } from "react";
-import { ChartColumn, ChartLine, ChevronDown, ChevronUp, CircleAlert, CircleCheck, CircleX, FileText, History, LoaderCircle } from "lucide-react";
+import { ChartColumn, ChartLine, ChevronDown, ChevronUp, CircleAlert, CircleCheck, CircleX, Eye, FileText, History, LoaderCircle } from "lucide-react";
 import { obtenerReportesTarea } from "@/lib/api";
 import type { Area, EstadoDato, Modo, ReportesTarea } from "@/lib/types";
 import { Mini } from "./HistorialEquipo";
 import { fechaHora } from "./MiHistorial";
+import VisorEnvio from "./VisorEnvio";
 
 const corta = (iso: string) => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
 const diaSemana = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("es", { weekday: "short" }).replace(".", "");
@@ -56,13 +57,14 @@ export default function ReportesAnteriores({ area, tarea, nombreTarea, modo, equ
   const [grafica, setGrafica] = useState(false);
   const [dia, setDia] = useState<string | null>(null);        // día elegido en el calendario (null = todos)
   const [verId, setVerId] = useState<number | null>(null);    // reporte desplegado
+  const [visor, setVisor] = useState<number | null>(null);    // reporte abierto en el panel de la derecha
   const [sel, setSel] = useState(-1);
   const caja = useRef<HTMLDivElement>(null);
   const [ancho, setAncho] = useState(300);
 
   useEffect(() => {
     let vigente = true;
-    setR(null); setError(""); setDia(null); setVerId(null);
+    setR(null); setError(""); setDia(null); setVerId(null); setVisor(null);
     obtenerReportesTarea(area, tarea, modo, equipo).then((x) => { if (vigente) setR(x); }, (e) => { if (vigente) setError((e as Error).message); });
     return () => { vigente = false; };
   }, [area, tarea, modo, equipo]);
@@ -144,6 +146,9 @@ export default function ReportesAnteriores({ area, tarea, nombreTarea, modo, equ
                                 <p key={c.label}><b>{c.label}:</b> {c.valor.length > 220 ? `${c.valor.slice(0, 217)}…` : c.valor}</p>
                               ))}
                               {e.ejemplo && <p className="hint">Reporte de ejemplo (demo).</p>}
+                              <button type="button" className="btn sec ra-ver" onClick={() => setVisor(e.id)}>
+                                <Eye size={15} aria-hidden="true" /> {e.archivo ? "Ver documento" : "Ver documento de la IA"}
+                              </button>
                             </div>
                           )}
                         </li>
@@ -185,6 +190,8 @@ export default function ReportesAnteriores({ area, tarea, nombreTarea, modo, equ
           )}
         </>
       )}
+
+      {visor !== null && <VisorEnvio modo={modo} envio={visor} onCerrar={() => setVisor(null)} />}
     </aside>
   );
 }

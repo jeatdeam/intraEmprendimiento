@@ -2,28 +2,33 @@
 /**
  * Panel que se abre a la derecha al tocar un archivo ya enviado: muestra el documento (o la tabla del archivo de
  * datos) y POR QUÉ fue aceptado o no: los puntos del formato oficial que cumple y los que no.
+ *
+ * Con `usuario` abre un envío de esa persona; con `modo` (sin usuario) abre un reporte anterior de toda la planta
+ * (panel "Reportes anteriores"), que también puede ser una consulta sin archivo: entonces muestra lo que se escribió
+ * y el documento que entregó la IA.
  */
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CircleAlert, CircleCheck, CircleX, FileText, LoaderCircle, Upload, X } from "lucide-react";
-import { obtenerMotivo } from "@/lib/api";
-import type { MotivoEnvio } from "@/lib/types";
+import { obtenerMotivo, obtenerReporte } from "@/lib/api";
+import type { Modo, MotivoEnvio, ReporteVisto } from "@/lib/types";
 import Documento from "./Documento";
 import { fechaHora } from "./MiHistorial";
 
-export default function VisorEnvio({ usuario, envio, planta = "Central Renovable", onUsar, onCerrar }: {
-  usuario: string; envio: number; planta?: string; onUsar?: () => void; onCerrar: () => void;
+export default function VisorEnvio({ usuario, modo, envio, planta = "Central Renovable", onUsar, onCerrar }: {
+  usuario?: string; modo?: Modo; envio: number; planta?: string; onUsar?: () => void; onCerrar: () => void;
 }) {
-  const [m, setM] = useState<MotivoEnvio | null>(null);
+  const [m, setM] = useState<MotivoEnvio | ReporteVisto | null>(null);
   const [error, setError] = useState("");
   const cerrar = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let vigente = true;
     setM(null); setError("");
-    obtenerMotivo(usuario, envio).then((x) => { if (vigente) setM(x); }, (e) => { if (vigente) setError((e as Error).message); });
+    const pedido: Promise<MotivoEnvio | ReporteVisto> = usuario ? obtenerMotivo(usuario, envio) : obtenerReporte(envio, modo ?? "real");
+    pedido.then((x) => { if (vigente) setM(x); }, (e) => { if (vigente) setError((e as Error).message); });
     return () => { vigente = false; };
-  }, [usuario, envio]);
+  }, [usuario, modo, envio]);
 
   useEffect(() => {
     cerrar.current?.focus();
@@ -34,6 +39,7 @@ export default function VisorEnvio({ usuario, envio, planta = "Central Renovable
 
   const grupos = m?.tipo === "documento" ? [...new Set(m.checks.map((c) => c.grupo))] : [];
   const fallan = m?.tipo === "documento" ? m.checks.filter((c) => !c.ok) : [];
+  const rep = m && "resultado" in m ? m : null;      // reporte anterior: trae lo escrito y el resultado de la IA
 
   // Va directo al <body>: dentro del formulario, el vidrio (backdrop-filter) encerraría el panel fijo.
   return createPortal(
@@ -42,8 +48,8 @@ export default function VisorEnvio({ usuario, envio, planta = "Central Renovable
         <header className="visor-top">
           <FileText size={20} aria-hidden="true" />
           <div>
-            <b id="visor-t">{m?.archivo ?? "Archivo enviado"}</b>
-            {m && <small>Enviado el {fechaHora(m.creado)}</small>}
+            <b id="visor-t">{m?.archivo ?? rep?.tarea ?? "Archivo enviado"}</b>
+            {m && <small>Enviado el {fechaHora(m.creado)}{rep?.nombre ? ` por ${rep.nombre}` : ""}{rep ? ` · skill ${rep.skill}` : ""}</small>}
           </div>
           <button ref={cerrar} type="button" className="chat-icono" onClick={onCerrar} aria-label="Cerrar"><X size={19} aria-hidden="true" /></button>
         </header>
@@ -52,7 +58,26 @@ export default function VisorEnvio({ usuario, envio, planta = "Central Renovable
           {error && <p className="error" role="alert"><CircleAlert size={18} aria-hidden="true" /> {error}</p>}
           {!m && !error && <p className="revisando"><LoaderCircle size={18} className="gira" aria-hidden="true" /> Cargando el archivo…</p>}
 
-          {m && (
+          {m?.tipo === "consulta" && (
+            <>
+              {rep && rep.campos.length > 0 && (
+                <section className="visor-porque">
+                  <h3>Lo que se escribió</h3>
+                  <dl className="visor-campos">
+                    {rep.campos.map((c) => <div key={c.label}><dt>{c.label}</dt><dd>{c.valor}</dd></div>)}
+                  </dl>
+                </section>
+              )}
+              <section className="visor-doc">
+                <h3>El documento que entregó la IA</h3>
+                {rep?.resultado
+                  ? <div className="result"><Documento texto={rep.resultado} planta={planta} fecha={m.creado} /></div>
+                  : <p className="hint">De este reporte solo se guardaron los datos que se escribieron, no el documento.</p>}
+              </section>
+            </>
+          )}
+
+          {m && m.tipo !== "consulta" && (
             <>
               <div className={`veredicto ${m.aceptado ? "si" : "no"}`}>
                 {m.aceptado ? <CircleCheck size={26} aria-hidden="true" /> : <CircleX size={26} aria-hidden="true" />}
@@ -129,6 +154,13 @@ export default function VisorEnvio({ usuario, envio, planta = "Central Renovable
                   </div>
                 )}
               </section>
+
+              {rep?.resultado && (
+                <details className="visor-doc visor-ia">
+                  <summary>Ver lo que respondió la IA</summary>
+                  <div className="result"><Documento texto={rep.resultado} planta={planta} fecha={m.creado} /></div>
+                </details>
+              )}
             </>
           )}
         </div>
